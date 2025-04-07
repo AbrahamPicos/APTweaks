@@ -18,7 +18,7 @@ local config = {
 -- Variables para el jugador controladas por el evento tick; Son útiles para el comando warp y el sistema AFK.
 local player_flags = {
     --- El jugador asociado al cliente. Se establece a un IsoPlayer si existe en el evento OnTick. Se reestablece a nil si
-    ---  seja de existir.
+    ---  deja de existir.
     player = nil;
     --- La última localización del jugador. Se reajusta en cada tick si su localización ha cambiado.
     lastLocation = {x = nil, y = nil, z = nil};
@@ -37,9 +37,9 @@ local player_flags = {
     --- El tick cuando inició el comando warp. Se establece como el número de tick en el que inWarpCommand se estableció como
     ---  true. Se reestablece a nil si el jugador se movió o fue teletransportado.
     warpCommandTickStart = nil;
-    --- La cantidad de segundos que falta para que el jugador pueda teletransportarse otra vez. Sólo se usa para el mensaje de
+    --- La cantidad de segundos que faltan para que el jugador pueda teletransportarse otra vez. Sólo se usa para el mensaje de
     ---  error que el jugador ve cuando intenta teletrasportarse en cooldown. Se reestablece a nil cuando ha pasado el tiempo en
-    ---  releportDelay.
+    ---  teleportDelay.
     warpCommandCooldownSecondsLeft = nil
 }
 
@@ -62,7 +62,7 @@ local function OnAddMessage(message, tabId)
     local player = player_flags.player
 
     if player ~= nil then
-        -- La tabla que almacena cada palabra incuida en la cádena message.
+        -- La tabla que almacena cada palabra incuida en la cadena message.
         -- Tenga en cuenta que esta tabla contiene todo el mensaje, incluidas las palabras "Unknown command".
         local args = {}
 
@@ -72,7 +72,7 @@ local function OnAddMessage(message, tabId)
 
         if #args >= 3 then
 
-            if args[1] == "Unknown" and args[2] == "command" and args[3] == "warp" then
+            if args[1] == "Unknown" and args[2] == "command" and args[3] == getText("UI_APTweaks_WarpCommand") then
 
                 if #args <= 4 then
 
@@ -93,20 +93,20 @@ local function OnAddMessage(message, tabId)
                                             player_flags.warpCommandWarp = warp
                                             player_flags.warpCommandCooldownSecondsLeft = config.teleportCooldown
 
-                                            message:setText(string.format("<RGB:0,1,0>Teletransportadando a %s...", warp))
+                                            message:setText(string.format(getText("UI_APTweaks_TeleportBegins"), warp))
                                         else
-                                            message:setText(string.format("<RGB:1,0,0>Debe esperar %s segundos antes de volver a ejecutar ese comando.", player_flags.warpCommandCooldownSecondsLeft))
+                                            message:setText(string.format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft))
                                         end
                                     else
-                                        message:setText("<RGB:1,0,0>Ya se esta ejecutando ese comando.")
+                                        message:setText(getText("UI_APTweaks_AlreadyExecuting"))
                                     end
                                 else
-                                    message:setText("<RGB:1,0,0>No puede ejecutar ese comando mientras se mueve.")
+                                    message:setText(getText("UI_APTweaks_MovingExecutionForbidden"))
                                 end
                             else
-                                message:setText("<RGB:1,0,0>No puede ejecutar ese comando dentro de un vehiculo.")
+                                message:setText(getText("UI_APTweaks_RidingExecutionForbidden"))
                             end
-                        -- En este bloque, usando como elementos las llaves en la tabla warps, crea un string con el formato
+                        -- En este bloque, usando como elementos las llaves en la tabla warps, se crea un string con el formato
                         --  correcto para ser incluido en una oración que dicta los warps disponibles.
                         -- Aunque ahora parece sobreingeniería, los warps serán dinámicos en el futuro.
                         else
@@ -124,18 +124,18 @@ local function OnAddMessage(message, tabId)
                                 if aviableWarps == "" then
                                     aviableWarps = tostring(existingWarp)
                                 elseif processedElements == totalElements then
-                                    aviableWarps = aviableWarps .. ", y " .. tostring(existingWarp)
+                                    aviableWarps = aviableWarps .. getText("UI_APTweaks_WarpsList_SeparatorFinal") .. tostring(existingWarp)
                                 else
-                                    aviableWarps = aviableWarps .. ", " .. tostring(existingWarp)
+                                    aviableWarps = aviableWarps .. getText("UI_APTweaks_WarpsList_Separator") .. tostring(existingWarp)
                                 end
                             end
-                            message:setText(string.format("<RGB:1,0,0>Warp %s no encontrado. Los warps disponibles son %s.", warp, aviableWarps))
+                            message:setText(string.format(getText("UI_APTweaks_MissingWarp"), warp, aviableWarps))
                         end
                     else
-                        message:setText("<RGB:1,0,0>Debe especificar un warp. Use /warp [warp].")
+                        message:setText(string.format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_WarpCommandUsage")))
                     end
                 else
-                    message:setText("<RGB:1,0,0>Demasiados argumentos. Use /warp [warp].")
+                    message:setText(string.format(getText("UI_APTweaks_FewArgs"), getText("UI_APTweaks_WarpCommandUsage")))
                 end
             end
         end
@@ -148,10 +148,10 @@ local function RestoreCooldownFlags()
     player_flags.warpCommandCooldownSecondsLeft = nil
 end
 
--- Restaura las las variables del jugador a sus valores por defecto para su posterior reutilización.
---- @param allFlags boolean Si debe hacerse un hard restore, lo que borrará todas las banderas.
---- @param cooldownFlags boolean Si deberían borrarse las banderas de cooldown, independientemente de todas las demás.
---- @param value (table|nil) El valor que la bandera lastLocation tendrá. Puede ignorarse completamente si allFlags es falso.
+-- Restaura las vanderas del jugador a sus valores por defecto para su posterior reutilización.
+--- @param allFlags boolean Si debe hacerse un hard restore, lo que borrará todas las vanderas.
+--- @param cooldownFlags boolean Si deberían borrarse las vanderas de cooldown, independientemente de todas las demás.
+--- @param value (table|nil) El valor que la vandera lastLocation tendrá. Puede ignorarse completamente si allFlags es false.
 local function RestorePlayerFlags(allFlags, cooldownFlags, value)
     local player = player_flags.player
 
@@ -164,7 +164,7 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
                 player_flags.isAfk = false
 
                 if player ~= nil then
-                    player:setHaloNote("Ya no estas AFK.", 0, 255, 0, 500)
+                    player:setHaloNote(getText("UI_APTweaks_AfkRemoved"), 0, 255, 0, 500)
                 end
             end
             player_flags.iddleTickStart = nil
@@ -176,7 +176,7 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
                 RestoreCooldownFlags()
 
                 if player ~= nil then
-                    player:setHaloNote("Teletransportacion cancelada.", 255, 0, 0, 500)
+                    player:setHaloNote(getText("UI_APTweaks_TeleportCancelled"), 255, 0, 0, 500)
                 end
             end
             if player_flags.warpCommandWarp ~= nil then
@@ -211,7 +211,7 @@ local function SecondsElapsed(tick, value)
 end
 
 -- En el evento OnTick. Verifica constantemente la localización del cliente, de tenerla, y redefine las variables en su
---  tabla de banderas según la lógica que procesa.
+--  tabla de vanderas según la lógica que procesa.
 --- @param tick number
 local function OnTickEvenPaused(tick)
 
@@ -223,7 +223,7 @@ local function OnTickEvenPaused(tick)
 
         player_flags.player = player
 
-        -- Si el jugador existe y tinen coordenadas.
+        -- Si el jugador existe y tiene coordenadas.
         if player ~= nil and playerX ~= nil and playerY ~= nil and playerZ ~= nil then
 
             -- El evento OnAddMessage no puede saber cuál es el tick actual, ya que no hay un método para eso en la clase GameTime.
@@ -242,7 +242,7 @@ local function OnTickEvenPaused(tick)
                 if isWholeSecond then
 
                     if player_flags.inWarpCommand then
-                        player:setHaloNote(string.format("Teletransportando. %s...", math.abs(secondsElapsed - config.teleportDelay)), 0, 255, 0, 500)
+                        player:setHaloNote(string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(secondsElapsed - config.teleportDelay)), 0, 255, 0, 500)
 
                         if secondsElapsed == config.teleportDelay then
                         local location = warps[player_flags.warpCommandWarp]
@@ -254,11 +254,11 @@ local function OnTickEvenPaused(tick)
                             player:setX(location.x)
                             player:setY(location.y)
                             player:setZ(location.z)
-                            player:setHaloNote(string.format("Teletransportado a %s.", player_flags.warpCommandWarp), 0, 255, 0, 500)
+                            player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
                             -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
                             --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
-                            -- Aún así las banderas deben limpiarse ahora para asegurarse de que el comando esté disponble
-                            --  inmediatamente al siguente tick. Es una medida de escape. 
+                            -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
+                            --  inmediatamente al siguente tick. Es una medida de escape.
                             RestorePlayerFlags(true, false, nil)
                         end
                     else
@@ -289,7 +289,7 @@ local function OnTickEvenPaused(tick)
                             player_flags.isAfk = true
                         end
                         if player_flags.isAfk then
-                            player:setHaloNote("Ahora estas AFK.", 255, 0, 0, 500)
+                            player:setHaloNote(getText("UI_APTweaks_Afk"), 255, 0, 0, 500)
 
                             if secondsElapsed == config.afkStart + config.afkKick then
                                 getCore():exitToMenu()
