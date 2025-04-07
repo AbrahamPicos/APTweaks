@@ -1,0 +1,19 @@
+UI_EN = {
+    UI_APTweaks_WarpCommand = "warp",
+    UI_APTweaks_WarpsList_Separator = ", ",
+    UI_APTweaks_WarpsList_SeparatorFinal = ", and ",
+    UI_APTweaks_TeleportBegins = "<RGB:0,1,0>Teleporting to %s...",
+    UI_APTweaks_AfkRemoved = "You are no longer AFK.",
+    UI_APTweaks_TeleportDelaying = "Teleporting. %d...",
+    UI_APTweaks_TeleportSuccess = "Teleported to %s.",
+    UI_APTweaks_TeleportCooldown = "<RGB:1,0,0>You must wait %d seconds before running this command again.",
+    UI_APTweaks_AlreadyExecuting = "<RGB:1,0,0>The command is already being executed.",
+    UI_APTweaks_MovingExecutionForbidden = "<RGB:1,0,0>You cannot execute this command while moving.",
+    UI_APTweaks_RidingExecutionForbidden = "<RGB:1,0,0>You cannot execute this command inside a vehicle.",
+    UI_APTweaks_MissingWarp = "<RGB:1,0,0>Warp %s not found. Available warps are %s.",
+    UI_APTweaks_ManyArgs = "<RGB:1,0,0>Incorrect use. %s",
+    UI_APTweaks_FewArgs = "<RGB:1,0,0>Too many arguments. %s",
+    UI_APTweaks_WarpCommandUsage = "Use /warp [warp].",
+    UI_APTweaks_TeleportCancelled = "Teleportation cancelled.",
+    UI_APTweaks_Afk = "You are now AFK."
+}
