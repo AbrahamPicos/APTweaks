@@ -2,6 +2,8 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
+require("APTweaks.lua")
+
 -- El mapa de datos de APTweaks.
 -- Evidentemente esto no es persistente. Es sólo para la demostración. Está pendiente implementar ModData
 --  para que los datos sean persistentes.
@@ -49,16 +51,16 @@ local function OnClientCommand(module, command, player, args)
                                 aptweaks.blocked[areaID] = player:getUsername()
                                 sendServerCommand(player, "com.github.abrahampicos.aptweaks", "createSafehouse", {x1 = x1, y1= y1, w = x2 - x1, h = y2 - y1})
                             else
-                                sendServerCommand(player, "com.github.abrahampicos.aptweaks", "claimCommandError", {text = "El area ya esta reclamada."})
+                                sendServerCommand(player, "com.github.abrahampicos.aptweaks", "messageCommand", {text = "El area ya esta reclamada."})
                             end
                         else
-                            sendServerCommand(player, "com.github.abrahampicos.aptweaks", "claimCommandError", {text = "Intente mas tarde."})
+                            sendServerCommand(player, "com.github.abrahampicos.aptweaks", "messageCommand", {text = "Intente mas tarde."})
                         end
                         break
                     end
                 end
             else
-                sendServerCommand(player, "com.github.abrahampicos.aptweaks", "claimCommandError", {text = "No estas en un area reclamable."})
+                sendServerCommand(player, "com.github.abrahampicos.aptweaks", "messageCommand", {text = "No estas en un area reclamable."})
             end
         elseif command == "defineCommand" then
             local areaID = args.areaID

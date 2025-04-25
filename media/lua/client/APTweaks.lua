@@ -2,6 +2,8 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
+require("APTweaks_server.lua")
+
 -- Almacena las definiciones temporales de pos1 y pos2, posiciones que representan los vertices que limitan el área de la
 --  safehouse. Se usan para el comando safezone define.
 local safehouse = {
@@ -16,21 +18,23 @@ local modID = "com.github.abrahampicos.aptweaks"
 -- El Número que identificar la sesión actual. Se usa para diferenciar el sistema de mensajería interno.
 local sesionID = nil
 
+-- En el evento OnGameStart. Define cómo será la ID de esta sesión.
 local function OnGameStart()
     -- Por alguna razón esto puede dar 100, pero no 1000, así que el número siempre será de 3 dígitos.
     sesionID = ZombRandBetween(100, 1000)
 end
 
--- La lógica del comando safehouse. Estoy experimentando con mover cosas de OnAddMessage afuera. Voy a cargar mucho ese
---  evento.
---- @param player table
---- @param args table
+-- La lógica del comando safehouse. Siempre que proporcione argumentos válidos, y la lógica para usar la tabla que
+--  responde, puede llamar a esta función desde cualquier otra. 
+--- @param player table Un IsoPlayer.
+--- @param args table La lista de argumentos.
+--- @return table table Una tabla con la respuesta. Un texto, y un mapa de datos según se requiera.
 local function SafehouseCommand(player, args)
 
-    if #args >= 4 then
+    if #args >= 1 then
 
-        if #args == 4 then
-            local command = args[4]
+        if #args == 1 then
+            local command = args[1]
             local x, y = math.floor(player:getX()), math.floor(player:getY())
 
             if command == "claim" then
@@ -38,7 +42,7 @@ local function SafehouseCommand(player, args)
                 local cellX, cellY = math.floor(cell:getMinX() / 300), math.floor(cell:getMinY() / 300)
                 local cellID = tostring(cellX) .. "," .. tostring(cellY)
 
-                return {text = "Espere un momento...", command = {command = "claimCommand", data = {cellID = cellID, x = x, y = y}}}
+                return {text = "Espere un momento...", commandSend = {command = "claimCommand", data = {cellID = cellID, x = x, y = y}}}
 
             elseif command == "pos1" or command == "pos2" then
 
@@ -75,10 +79,7 @@ local function SafehouseCommand(player, args)
 
                             if x2 - x1 < 300 and y2 - y1 < 300 then
                                 local areaID = x1 .. "," .. y2
-                                local cx1 = math.floor(x1 / 300)
-                                local cx2 = math.floor(x2 / 300)
-                                local cy1 = math.floor(y1 / 300)
-                                local cy2 = math.floor(x2 / 300)
+                                local cx1, cy1, cx2, cy2 = math.floor(x1 / 300), math.floor(y1 / 300), math.floor(x2 / 300), math.floor(y2 / 300)
                                 local cells = {}
 
                                 for cx = cx1, cx2 do
@@ -91,7 +92,7 @@ local function SafehouseCommand(player, args)
                                         end
                                     end
                                 end
-                                return {text = "Espere un momento...", command = {command = "safehouseDefineCommand", data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}}}
+                                return {text = "Espere un momento...", commandSend = {command = "safehouseDefineCommand", data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}}}
                             else
                                 return {text = "El area no puede ser mayor o igual a 300 tiles."}
                             end
@@ -124,37 +125,38 @@ local function OnAddMessage(message, tabId)
 
     if player ~= nil then
         -- La tabla que almacena cada palabra incluida en la cadena message.
-        -- Tenga en cuenta que esta tabla contiene todo el mensaje, incluidas las palabras "Unknown command", por lo que no
-        --   no son argumentos realmente.
-        local args = {}
+        -- Tenga en cuenta que esta tabla contiene todo el mensaje, incluidas las palabras "Unknown command".
+        local words = {}
 
         for word in string.gmatch(message:getText(), "%S+") do
-            table.insert(args, word)
+            table.insert(words, word)
         end
 
-        if #args >= 3 then
+        if #words >= 3 then
 
-            if args[1] == "Unknown" and args[2] == "command" then
+            if words[1] == "Unknown" and words[2] == "command" then
+                local command = words[3]
+                local args  = {unpack(words, 4)}
+                local text = nil
                 local result = nil
 
-                if args[3] == "APTWeaksMessage" then
+                if command == sesionID then
+                    result = {text = table.concat(args, " ", 2)}
 
-                    if args[4] == sesionID then
-                        result = {text = table.concat(args, " ", 5)}
-                    end
-
-                elseif args[3] == "safezone" then
+                elseif command == "safezone" then
                     result = SafehouseCommand(player, args)
+                else
+                    text = "uso incorrecto."
                 end
                 if result then
-                    local command = result.command
+                    text = result.text
+                    local commandSend = result.commandSend
 
-                    message:setText(result.text)
-
-                    if command then
-                        sendClientCommand(player, modID, command.command, command.data)
+                    if commandSend then
+                        sendClientCommand(player, modID, commandSend.command, commandSend.data)
                     end
                 end
+                message:setText(text)
             end
         end
     end
@@ -164,16 +166,23 @@ end
 local function OnServerCommand(module, command, args)
     if module == "com.github.abrahampicos.aptweaks" then
 
-        if command == "claimCommand" then
+        if command == "createSafehouse" then
+            local player = getPlayer()
+            local status = "fail"
             -- addSafeHouse(Int X, Int Y, Int W, Int H, String username, boolean remote)
 			-- X y Y, representa el vértice desde el que se extenderá la safehouse, y debe estar en la esquina superior izquierda.
 			-- W(width) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
 			-- H(height) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina inferior izquieda. 
             -- No tengo ni la más mínima idea de qué es remote. Podría afectar al cómo se reporta al servidor la existencia del área.
-            local safezone = SafeHouse.addSafeHouse(8079, 11420, 10, 10, getPlayer():getUsername(), false)
-            -- No sé en qué afecta esto. Creo que se llama igualmente cuando se usa addSafeHouse, así que podría estár de más.
-            safezone:syncSafehouse()
-            print("[APTweaksDebug] Se supone que debiste haber obtenido aqui tu mugre safehouse.")
+            local safezone = SafeHouse.addSafeHouse(args.x1, args.y1, args.w, args.h, player:getUsername(), false)
+            if safezone then
+                SendCommandToServer(sesionID .. " " .. "Safehouse creada exitosamente.")
+            else
+                SendCommandToServer(sesionID .. " " .. "Ocurrio un error desconocido al crear la safehouse.")
+            end
+            sendClientCommand(player, modID, "claimCommandSucess", {status = status, blocked = player:getUsername()})
+        elseif command == "messageCommand" then
+            SendCommandToServer(sesionID .. " " .. args.text)
         end
     end
 end
