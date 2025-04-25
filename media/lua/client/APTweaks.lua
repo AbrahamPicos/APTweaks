@@ -3,7 +3,7 @@
 -- Maintainer: AbrahamPicos.
 
 -- Almacena las definiciones temporales de pos1 y pos2, posiciones que representan los vertices que limitan el área de la
---  safehouse. Se usan para el comando safehouse define.
+--  safehouse. Se usan para el comando safezone define.
 local safehouse = {
     -- El vertice1, debe ser el de la esquina superior izquierda.
     pos1 = nil,
@@ -11,6 +11,8 @@ local safehouse = {
     pos2 = nil
 }
 
+-- La ID del mod.
+local modID = "com.github.abrahampicos.aptweaks"
 -- El Número que identificar la sesión actual. Se usa para diferenciar el sistema de mensajería interno.
 local sesionID = nil
 
@@ -22,9 +24,8 @@ end
 -- La lógica del comando safehouse. Estoy experimentando con mover cosas de OnAddMessage afuera. Voy a cargar mucho ese
 --  evento.
 --- @param player table
---- @param message table
 --- @param args table
-local function SafehouseCommand(player, message, args)
+local function SafehouseCommand(player, args)
 
     if #args >= 4 then
 
@@ -37,77 +38,85 @@ local function SafehouseCommand(player, message, args)
                 local cellX, cellY = math.floor(cell:getMinX() / 300), math.floor(cell:getMinY() / 300)
                 local cellID = tostring(cellX) .. "," .. tostring(cellY)
 
-                message:setText("Espere un momento...")
-                sendClientCommand(player, "com.github.abrahampicos.aptweaks", "claimCommand", {cellID = cellID, x = x, y = y})
+                return {text = "Espere un momento...", command = {command = "claimCommand", data = {cellID = cellID, x = x, y = y}}}
 
             elseif command == "pos1" or command == "pos2" then
 
-                if x >= 0 and y >= 0 then
+                if isAdmin() then
 
-                    if command == "pos1" then
-                        safehouse.pos1 = {x = x, y = y}
+                    if x >= 0 and y >= 0 then
+                        safehouse[command] = {x = x, y = y}
+                        return {text = string.format("Definida la posicion del vertice de area %s en %d,%d.", command, x, y)}
                     else
-                        safehouse.pos2 = {x = x, y = y}
+                        return {text = "No puede usar coordenadas negativas."}
                     end
-                    message:setText(string.format("definida la posicion del vertice de area %s en %d,%d.", command, x, y))
                 else
-                    message:setText("No puede usar coordenadas negativas.")
+                    return {text = "No tiene permitido usar ese comando."}
                 end
             elseif command == "clearposts" then
-                safehouse.pos1 = nil
-                safehouse.pos2 = nil
-                message:setText("Se han removido las definiciones de pos1 y pos2 de la memoria temporal.")
 
+                if isAdmin() then
+                    safehouse.pos1 = nil
+                    safehouse.pos2 = nil
+                    return {text = "Se han removido las definiciones de pos1 y pos2 de la memoria temporal."}
+                else
+                    return {text = "No tiene permitido usar ese comando."}
+                end
             elseif command == "define" then
-                local pos1, pos2 = safehouse.pos1, safehouse.pos2
 
-                if pos1 ~= nil and pos2 ~= nil then
-                    local x1, y1, x2, y2 = pos1.x, pos1.y, pos2.x, pos2.y
+                if isAdmin() then
+                    local pos1, pos2 = safehouse.pos1, safehouse.pos2
 
-                    if x2 > x1 and y2 > y1 then
-                        local cellID = nil
+                    if pos1 and pos2 then
+                        local x1, y1, x2, y2 = pos1.x, pos1.y, pos2.x, pos2.y
 
-                        if x2 - x1 < 300 and y2 - y1 < 300 then
-                            local areaID = x1 .. "," .. y2
-                            local cx1 = math.floor(x1 / 300)
-                            local cx2 = math.floor(x2 / 300)
-                            local cy1 = math.floor(y1 / 300)
-                            local cy2 = math.floor(x2 / 300)
-                            local cells = {}
+                        if x2 > x1 and y2 > y1 then
+                            local cellID = nil
 
-                            for cx = cx1, cx2 do
+                            if x2 - x1 < 300 and y2 - y1 < 300 then
+                                local areaID = x1 .. "," .. y2
+                                local cx1 = math.floor(x1 / 300)
+                                local cx2 = math.floor(x2 / 300)
+                                local cy1 = math.floor(y1 / 300)
+                                local cy2 = math.floor(x2 / 300)
+                                local cells = {}
 
-                                for cy = cy1, cy2 do
-                                    cellID = cx .. "," .. cy
+                                for cx = cx1, cx2 do
 
-                                    if not cells[cellID] then
-                                        cells[cellID] = {x = cx, y = cy, areas = {areaID}}
+                                    for cy = cy1, cy2 do
+                                        cellID = cx .. "," .. cy
+
+                                        if not cells[cellID] then
+                                            cells[cellID] = {x = cx, y = cy, areas = {areaID}}
+                                        end
                                     end
                                 end
+                                return {text = "Espere un momento...", command = {command = "safehouseDefineCommand", data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}}}
+                            else
+                                return {text = "El area no puede ser mayor o igual a 300 tiles."}
                             end
-                            sendClientCommand(player, "com.github.abrahampicos.aptweaks", "safehouseDefineCommand", {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells})
                         else
-                            message:setText("El area no puede ser mayor o igual a 300 tiles.")
+                            return {text = "Es necesario que pos1 este en la esquina superior izquierda del area."}
                         end
                     else
-                        message:setText("Es necesario que pos1 este en la esquina superior izquierda del area.")
+                        return {text = "Antes debe definir el area con pos1 y pos2."}
                     end
                 else
-                    message:setText("Antes debe definir el area con pos1 y pos2.")
+                    return {text = "No tiene permitido usar ese comando."}
                 end
             else
-                message:setText("Uso incorrecto.")
+                return {text = "Uso incorrecto."}
             end
         else
-            message:setText("Demasiados argumentos.")
+            return {text = "Demasiados argumentos."}
         end
     else
-        message:setText("Faltan argumentos.")
+        return {text = "Faltan argumentos."}
     end
 end
 
 -- En el evento OnAddMessage. Intercepta los mensajes, y convierte su cadana de texto a una tabla cuyos elementos usa
---  para determinar si cliente está intentando ejecutar el comando claim.
+--  para determinar si cliente está intentando ejecutar algún comando de APTweaks.
 --- @param message table
 --- @param tabId number
 local function OnAddMessage(message, tabId)
@@ -126,15 +135,25 @@ local function OnAddMessage(message, tabId)
         if #args >= 3 then
 
             if args[1] == "Unknown" and args[2] == "command" then
+                local result = nil
 
                 if args[3] == "APTWeaksMessage" then
 
                     if args[4] == sesionID then
-                        message:setText(table.concat(args, " ", 5))
+                        result = {text = table.concat(args, " ", 5)}
                     end
 
-                elseif args[3] == "safe" then
-                    SafehouseCommand(player, message, args)
+                elseif args[3] == "safezone" then
+                    result = SafehouseCommand(player, args)
+                end
+                if result then
+                    local command = result.command
+
+                    message:setText(result.text)
+
+                    if command then
+                        sendClientCommand(player, modID, command.command, command.data)
+                    end
                 end
             end
         end
@@ -148,11 +167,12 @@ local function OnServerCommand(module, command, args)
         if command == "claimCommand" then
             -- addSafeHouse(Int X, Int Y, Int W, Int H, String username, boolean remote)
 			-- X y Y, representa el vértice desde el que se extenderá la safehouse, y debe estar en la esquina superior izquierda.
-			-- W es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
-			-- H es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina interior izquieda. 
-            -- No tengo ni la más nínima idea de qué es remote.
-            local safehouse = SafeHouse.addSafeHouse(8079, 11420, 10, 10, getPlayer():getUsername(), false)
-            safehouse:syncSafehouse()
+			-- W(width) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
+			-- H(height) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina inferior izquieda. 
+            -- No tengo ni la más mínima idea de qué es remote. Podría afectar al cómo se reporta al servidor la existencia del área.
+            local safezone = SafeHouse.addSafeHouse(8079, 11420, 10, 10, getPlayer():getUsername(), false)
+            -- No sé en qué afecta esto. Creo que se llama igualmente cuando se usa addSafeHouse, así que podría estár de más.
+            safezone:syncSafehouse()
             print("[APTweaksDebug] Se supone que debiste haber obtenido aqui tu mugre safehouse.")
         end
     end

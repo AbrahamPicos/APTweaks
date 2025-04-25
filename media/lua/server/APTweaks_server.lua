@@ -1,13 +1,19 @@
--- APTweaks.lua
+-- APTweaks_server.lua
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
+-- El mapa de datos de APTweaks.
 -- Evidentemente esto no es persistente. Es sólo para la demostración. Está pendiente implementar ModData
 --  para que los datos sean persistentes.
 local aptweaks = {
+    -- La versión de la estructura de datos. Se usará para saber si debe actualizarse cuando se actualiza el mod.
     dataversion = 1,
+    -- El submapa de las áreas. Contiene toda la información de las áreas que pueden reclamarse.
     areas = {},
+    -- Un índice que registra las áreas que contiene cada celda para un acceso más rápido con iteraciones.
     cells = {},
+    -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por otro ciente.
+    --  Está aquí para evitar problemas de sincronización.
     blocked = {}
 }
 
@@ -27,11 +33,20 @@ local function OnClientCommand(module, command, player, args)
 
                     if x >= x1 and x <= x2 and y >= y1 and y <= y2 then
                         local areaID = x1 .. "," .. y2
+                        local isBlocked = false
 
-                        if not aptweaks.blocked[areaID] then
+                        for _, ID in pairs(aptweaks.blocked) do
+
+                            if ID == areaID then
+                                isBlocked = true
+                                break
+                            end
+                        end
+
+                        if not isBlocked then
 
                             if owner ~= nil then
-                                aptweaks.blocked[areaID] = player:getUsername() --evita problemas de sincronización.
+                                aptweaks.blocked[areaID] = player:getUsername()
                                 sendServerCommand(player, "com.github.abrahampicos.aptweaks", "createSafehouse", {x1 = x1, y1= y1, w = x2 - x1, h = y2 - y1})
                             else
                                 sendServerCommand(player, "com.github.abrahampicos.aptweaks", "claimCommandError", {text = "El area ya esta reclamada."})
