@@ -17,6 +17,27 @@ local safehouse = {
 local modID = "com.github.abrahampicos.aptweaks"
 -- El Número que identificar la sesión actual. Se usa para diferenciar el sistema de mensajería interno.
 local sesionID = nil
+-- Almacena la función orignial onReleaseSafehouse de la clase ISSafehouseUI para usarla aquí,
+local old_onReleaseSafehouse = ISSafehouseUI.onReleaseSafehouse
+
+-- Añade lógica adicional a la función vanilla onReleaseSafehouse para que ordene la modificación
+--  del mapa de datos de APTweaks.
+function ISSafehouseUI:onReleaseSafehouse(button, player)
+    old_onReleaseSafehouse(self, button, player)
+
+    -- Si necesitara inspacccionar self para conocer los atributos disponibles.
+    --for k, v in pairs(self) do
+    --    print(k, v)
+    --end
+
+    local safezone = button.parent.ui.safehouse
+
+    if safezone then
+        local areaID = tostring(safezone:getX()) .. " " .. tostring(safezone:getY())
+
+        sendClientCommand(player, modID, "safehouseUnclaim", {areaID = areaID, owener = player:getUsername()})
+    end
+end
 
 -- En el evento OnGameStart. Define cómo será la ID de esta sesión.
 local function OnGameStart()
@@ -42,7 +63,9 @@ local function SafehouseCommand(player, args)
                 local cellX, cellY = math.floor(cell:getMinX() / 300), math.floor(cell:getMinY() / 300)
                 local cellID = tostring(cellX) .. "," .. tostring(cellY)
 
-                return {text = "Espere un momento...", commandSend = {command = "claimCommand", data = {cellID = cellID, x = x, y = y}}}
+                local data = {cellID = cellID, x = x, y = y}
+
+                return {text = "Espere un momento...", commandSend = {command = "claimCommand", data = data}}
 
             elseif command == "pos1" or command == "pos2" then
 
@@ -50,6 +73,7 @@ local function SafehouseCommand(player, args)
 
                     if x >= 0 and y >= 0 then
                         safehouse[command] = {x = x, y = y}
+
                         return {text = string.format("Definida la posicion del vertice de area %s en %d,%d.", command, x, y)}
                     else
                         return {text = "No puede usar coordenadas negativas."}
@@ -62,6 +86,7 @@ local function SafehouseCommand(player, args)
                 if isAdmin() then
                     safehouse.pos1 = nil
                     safehouse.pos2 = nil
+
                     return {text = "Se han removido las definiciones de pos1 y pos2 de la memoria temporal."}
                 else
                     return {text = "No tiene permitido usar ese comando."}
@@ -92,7 +117,9 @@ local function SafehouseCommand(player, args)
                                         end
                                     end
                                 end
-                                return {text = "Espere un momento...", commandSend = {command = "safehouseDefineCommand", data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}}}
+                                local data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}
+
+                                return {text = "Espere un momento...", commandSend = {command = "safehouseDefineCommand", data = data}}
                             else
                                 return {text = "El area no puede ser mayor o igual a 300 tiles."}
                             end
@@ -141,13 +168,14 @@ local function OnAddMessage(message, tabId)
                 local result = nil
 
                 if command == sesionID then
-                    result = {text = table.concat(args, " ", 2)}
+                    text = table.concat(args, " ")
 
                 elseif command == "safezone" then
                     result = SafehouseCommand(player, args)
                 else
                     text = "uso incorrecto."
                 end
+
                 if result then
                     text = result.text
                     local commandSend = result.commandSend
@@ -156,33 +184,59 @@ local function OnAddMessage(message, tabId)
                         sendClientCommand(player, modID, commandSend.command, commandSend.data)
                     end
                 end
+
+                if text then
                 message:setText(text)
+                end
             end
         end
     end
 end
 
--- Recibe la respuesta del servidor al sendClientCommand enviado en el evento OnAddMessage.
+-- En el evento OnServerCommand. Procesa los comandos enviados desde el servidor al cliente que tienen que ver con APTweaks.
+--  Incluye el servicio de mensajería interno y la reclamación de safehouses.
+---@param module string Suele usarse la ID del mod. Sirve para diferenciar entre comandos enviados por otros mods.
+---@param command string El comandos en sí, es como el "asunto" en un correo electronico.
+---@param args table Los argumentos del comando. Es una tabla que puede contener cualquier cosa.
 local function OnServerCommand(module, command, args)
+
     if module == "com.github.abrahampicos.aptweaks" then
+        local text = nil
+        local commandSend = nil
+        local player = nil
 
         if command == "createSafehouse" then
-            local player = getPlayer()
-            local status = "fail"
+            player = getPlayer()
+
+            local username = player:getUsername()
+            local owner = nil
             -- addSafeHouse(Int X, Int Y, Int W, Int H, String username, boolean remote)
-			-- X y Y, representa el vértice desde el que se extenderá la safehouse, y debe estar en la esquina superior izquierda.
-			-- W(width) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
-			-- H(height) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina inferior izquieda. 
+            -- X y Y, representa el vértice desde el que se extenderá la safehouse, y debe estar en la esquina superior izquierda.
+            -- W(width) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
+            -- H(height) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina inferior izquieda. 
             -- No tengo ni la más mínima idea de qué es remote. Podría afectar al cómo se reporta al servidor la existencia del área.
-            local safezone = SafeHouse.addSafeHouse(args.x1, args.y1, args.w, args.h, player:getUsername(), false)
+            local safezone = SafeHouse.addSafeHouse(args.x1, args.y1, args.w, args.h, username, false)
+
             if safezone then
-                SendCommandToServer(sesionID .. " " .. "Safehouse creada exitosamente.")
+                owner = username
+                text = "Safehouse creada exitosamente."
             else
-                SendCommandToServer(sesionID .. " " .. "Ocurrio un error desconocido al crear la safehouse.")
+                text = "Ocurrio un error desconocido al crear la safehouse."
             end
-            sendClientCommand(player, modID, "claimCommandSucess", {status = status, blocked = player:getUsername()})
+            local data = {areaID = args.areaID, owner = owner, blocked = username}
+
+            commandSend = {command = "claimCommandSucess", data = data}
+
         elseif command == "messageCommand" then
-            SendCommandToServer(sesionID .. " " .. args.text)
+            text = args.text
+        end
+
+        if text then
+            SendCommandToServer(sesionID .. " " .. text)
+        end
+
+        if commandSend then
+            sendClientCommand(player, modID, commandSend.command, commandSend.data)
         end
     end
 end

@@ -49,7 +49,7 @@ local function OnClientCommand(module, command, player, args)
 
                             if owner ~= nil then
                                 aptweaks.blocked[areaID] = player:getUsername()
-                                sendServerCommand(player, "com.github.abrahampicos.aptweaks", "createSafehouse", {x1 = x1, y1= y1, w = x2 - x1, h = y2 - y1})
+                                sendServerCommand(player, "com.github.abrahampicos.aptweaks", "createSafehouse", {areaID = areaID, x1 = x1, y1= y1, w = x2 - x1, h = y2 - y1})
                             else
                                 sendServerCommand(player, "com.github.abrahampicos.aptweaks", "messageCommand", {text = "El area ya esta reclamada."})
                             end
@@ -73,6 +73,13 @@ local function OnClientCommand(module, command, player, args)
             -- {areaID = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}
             --local table = args.areaID
             --local x1, y1, x2, y2, owner = table.x1, table.y2, table.x2, table.y2, table.owner
+
+        elseif command == "claimCommandSucess" then
+
+            if args.owner then
+                aptweaks.areas[args.areaID].owner = args.owner
+            end
+            aptweaks.blocked[args.blocked] = nil
 
         elseif command == "something" then
             print("Esto es para experimentos futuros.")
