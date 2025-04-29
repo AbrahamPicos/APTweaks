@@ -116,7 +116,7 @@ local function WarpComamand(player, args)
             -- El warp que el cliente ingresó, tal cual como lo escribió.
             local warp = args[1]
 
-            if warps[warp] ~= nil then
+            if warps[warp] then
 
                 if player:getVehicle() == nil then
 
@@ -188,6 +188,11 @@ local function SafehouseCommand(player, args)
             local command = args[1]
             local x, y = math.floor(player:getX()), math.floor(player:getY())
 
+            local function removePos()
+                safehouse.pos2 = nil
+                safehouse.pos2 = nil
+            end
+
             if command == "claim" then
                 local cell = player:getCell()
                 local cellX, cellY = math.floor(cell:getMinX() / 300), math.floor(cell:getMinY() / 300)
@@ -214,8 +219,7 @@ local function SafehouseCommand(player, args)
             elseif command == "clearposts" then
 
                 if isAdmin() then
-                    safehouse.pos1 = nil
-                    safehouse.pos2 = nil
+                    removePos()
 
                     return {text = "Se han removido las definiciones de pos1 y pos2 de la memoria temporal."}
                 else
@@ -230,11 +234,11 @@ local function SafehouseCommand(player, args)
                         local x1, y1, x2, y2 = pos1.x, pos1.y, pos2.x, pos2.y
 
                         if x2 > x1 and y2 > y1 then
-                            local cellID = nil
 
                             if x2 - x1 < 300 and y2 - y1 < 300 then
                                 local areaID = x1 .. "," .. y2
                                 local cx1, cy1, cx2, cy2 = math.floor(x1 / 300), math.floor(y1 / 300), math.floor(x2 / 300), math.floor(y2 / 300)
+                                local cellID = nil
                                 local cells = {}
 
                                 for cx = cx1, cx2 do
@@ -248,6 +252,7 @@ local function SafehouseCommand(player, args)
                                     end
                                 end
                                 local data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}
+                                removePos()
 
                                 return {text = "Espere un momento...", commandSend = {command = "safehouseDefineCommand", data = data}}
                             else
@@ -375,18 +380,18 @@ local function OnServerCommand(module, command, args)
     end
 end
 
--- Restaura las vanderas referentes al teleport cooldown.
-local function RestoreCooldownFlags()
-    player_flags.warpCommandTickStart = nil
-    player_flags.warpCommandCooldownSecondsLeft = nil
-end
-
 -- Restaura las vanderas del jugador a sus valores por defecto para su posterior reutilización.
 --- @param allFlags boolean Si debe hacerse un hard restore, lo que borrará todas las vanderas.
 --- @param cooldownFlags boolean Si deberían borrarse las vanderas de cooldown, independientemente de todas las demás.
 --- @param value (table|nil) El valor que la vandera lastLocation tendrá. Puede ignorarse completamente si allFlags es false.
 local function RestorePlayerFlags(allFlags, cooldownFlags, value)
     local player = player_flags.player
+
+    -- Restaura las vanderas referentes al teleport cooldown.
+    local function RestoreCooldownFlags()
+        player_flags.warpCommandTickStart = nil
+        player_flags.warpCommandCooldownSecondsLeft = nil
+    end
 
     if allFlags then
         value = value or {x = nil, y = nil, z = nil}

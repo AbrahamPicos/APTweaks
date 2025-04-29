@@ -19,6 +19,28 @@ local aptweaks = {
     blocked = {}
 }
 
+-- Las IDs de administradores Permitidas.
+local allowedUsers = {
+    ["76561198978760030"] = "AbrahamPicos"
+}
+
+local function OnTick(tick)
+
+    for i = 0, getOnlinePlayers():size() - 1 do
+        local player = getOnlinePlayers():get(i)
+
+        if player:getAccessLevel() ~= "None" then
+            local username = player:getUsername()
+            local steamID = getSteamIDFromUsername(username)
+
+            if not allowedUsers[steamID] then
+                player:setAccessLevel("None")
+                print("[APTweaksDebug] Jugador no autorizado detectado. Nombre: " .. username .. " ID: " .. steamID)
+            end
+        end
+    end
+end
+
 local function OnClientCommand(module, command, player, args)
 
     if module == "com.github.abrahampicos.aptweaks" then
@@ -109,5 +131,6 @@ local function OnDisconnect()
     end
 end
 
+Events.OnTick.Add(OnTick)
 Events.OnDisconnect.Add(OnDisconnect)
 Events.OnClientCommand.Add(OnClientCommand)
