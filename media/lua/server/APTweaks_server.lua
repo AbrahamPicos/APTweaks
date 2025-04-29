@@ -33,9 +33,13 @@ local function OnTick(tick)
             local username = player:getUsername()
             local steamID = getSteamIDFromUsername(username)
 
-            if not allowedUsers[steamID] then
-                player:setAccessLevel("None")
-                print("[APTweaksDebug] Jugador no autorizado detectado. Nombre: " .. username .. " ID: " .. steamID)
+            -- Por alguna razón veo errores cuando se detecta a un jugador no autorizado si no hago esto.
+            if steamID then
+
+                if not allowedUsers[steamID] then
+                    player:setAccessLevel("None")
+                    print("[APTweaksDebug] Jugador no autorizado detectado. Nombre: " .. username .. " ID: " .. steamID)
+                end
             end
         end
     end
