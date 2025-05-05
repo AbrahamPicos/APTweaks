@@ -6,7 +6,7 @@ La idea es que en algún momento, estas modificaciones se conviertan en en algun
 
 ## Funciones.
 
-De momento, APTweaks sólo cuenta con dos funciones. Un comando warp, y sistema anti-AFK.
+De momento, APTweaks sólo cuenta con 4 funciones. Un comando warp, un sistema anti-AFK, un sistema para reclamar refugios sin la necesidad de edificios de por medio, y una función anticheat contra la escalada de privilegios.
 
 ## Contribución.
 
