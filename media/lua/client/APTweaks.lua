@@ -5,34 +5,20 @@
 
 require("APTweaks_server.lua")
 
+local Events = Events
+local getText = getText
+local sendClientCommand = sendClientCommand
+local format = string.format
+local tostring = tostring
+
 -- La ID del mod.
 local modID = "com.github.abrahampicos.aptweaks"
 -- El Número que identificar la sesión actual. Se usa para diferenciar el sistema de mensajería interno.
 local sesionID = nil
 --- Un contador experimental para probar si usar GameTime gettimedelta puede volver consistente el tiempo.
 local GenericTimeCounter = 0
--- Almacena la función orignial onReleaseSafehouse de la clase ISSafehouseUI para usarla aquí,
-local old_onReleaseSafehouse = ISSafehouseUI.onReleaseSafehouse
 
--- Constantes que controlan algunos aspectos configurables del mod:
-local config = {
-    --- Si se usará el sistema de warps(Incompleto pero estable).
-    warpSystemEnabled = true,
-    --- Si se usará el sistema anti-AFK(Incompleto pero estable).
-    afkSystemEnabled = true,
-    --- Si se usará el sistema de non-buildig safehouses(incompleto e inestable).
-    safehouseSystemEnabled = false,
-    --- El retraso de la teletransportación. Dentro de este tiempo se cancelará si el jugador se mueve.
-    teleportDelay = 5,
-    --- El tiempo de enfriamiento de la teletransportación. El jugador no podrá volver a teletransportarse dentro de este tiempo.
-    teleportCooldown = 30,
-    --- El tiempo que el jugador debe estar quieto para considerarse AFK.
-    afkStart = 60,
-    --- El tiempo que el jugador debe continuar quieto luego de considerarse AFK para forzarlo a salir al menú principal.
-    afkKick =  60
-}
-
--- Las localizaciones de cada warp. El punto al que el jugador será teletransportado.
+-- Los warps predeterminados. El punto al que el jugador será teletransportado.
 local warps = {
     westpoint = {x = 11889, y = 6862, z = 0},
     rosewood = {x = 8078, y = 11419, z = 0},
@@ -58,13 +44,13 @@ local player_flags = {
     lastLocation = {x = nil, y = nil, z = nil};
     --- Es el tick a partir del cual el jugador ha estado quieto. Se reestablece a nil si el jugador se mueve.
     iddleTickStart = nil;
-    --- Si el jugador está AFK. Se establece en true si iddleTickStart ha sido diferente de nil durante afkStart segundos.
+    --- Si el jugador está AFK. Se establece en true si iddleTickStart ha sido diferente de nil durante AfkStart segundos.
     ---  Se reestablece a false si el jugador se mueve.
     isAfk = false;
     --- Si el jugador está ejecutando el comando warp. Se establece en true cuando el jugador usó el comando warp. Se
     ---  reestablece a false si el jugador se movió o fue teletransportado.
     inWarpCommand = false;
-    --- El warp al que el jugador se teletransportará al finalizar teleportDelay si inWarpCommand es true. Se establece como
+    --- El warp al que el jugador se teletransportará al finalizar TeleportDelay si inWarpCommand es true. Se establece como
     ---  args[4] cuando este puede usarse como indice para obtener coordenadas en la tabla warps. Se reestablece a false si
     ---  el jugador se movió o fue teletransportado.
     warpCommandWarp = nil;
@@ -73,35 +59,13 @@ local player_flags = {
     warpCommandTickStart = nil;
     --- La cantidad de segundos que faltan para que el jugador pueda teletransportarse otra vez. Sólo se usa para el mensaje de
     ---  error que el jugador ve cuando intenta teletrasportarse en cooldown. Se reestablece a nil cuando ha pasado el tiempo en
-    ---  teleportDelay.
+    ---  TeleportDelay.
     warpCommandCooldownSecondsLeft = nil
 }
 
--- En el evento OnGameStart. Define cómo será la ID de esta sesión.
+-- En el evento OnGameStart. Indica que el archivo está cargado.
 local function OnGameStart()
     print("[APTweaksDebug] APTweaks.lua is loaded.")
-    -- Por alguna razón esto puede dar 100, pero no 1000, así que el número siempre será de 3 dígitos.
-    sesionID = ZombRandBetween(100, 1000)
-end
-
--- Añade lógica adicional a la función vanilla onReleaseSafehouse para que ordene la modificación
---  del mapa de datos de APTweaks.
-function ISSafehouseUI:onReleaseSafehouse(button, player)
-    old_onReleaseSafehouse(self, button, player)
-
-    if config.safehouseSystemEnabled then
-        -- Si necesitara inspacccionar self para conocer los atributos disponibles.
-        --for k, v in pairs(self) do
-        --    print(k, v)
-        --end
-        local safezone = button.parent.ui.safehouse
-
-        if safezone then
-            local areaID = tostring(safezone:getX()) .. " " .. tostring(safezone:getY())
-
-            sendClientCommand(player, modID, "safehouseUnclaim", {areaID = areaID, owener = player:getUsername()})
-        end
-    end
 end
 
 -- La lógica del comando warp. Siempre que proporcione argumentos válidos, y la lógica para usar la tabla que
@@ -127,11 +91,11 @@ local function WarpComamand(player, args)
                             if player_flags.warpCommandTickStart == nil then
                                 player_flags.inWarpCommand = true
                                 player_flags.warpCommandWarp = warp
-                                player_flags.warpCommandCooldownSecondsLeft = config.teleportCooldown
+                                player_flags.warpCommandCooldownSecondsLeft = SandboxVars.APTweaks.TeleportCooldown
 
-                                return {text = string.format(getText("UI_APTweaks_TeleportBegins"), warp)}
+                                return {text = format(getText("UI_APTweaks_TeleportBegins"), warp)}
                             else
-                                return {text = string.format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft)}
+                                return {text = format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft)}
                             end
                         else
                             return {text = getText("UI_APTweaks_AlreadyExecuting")}
@@ -165,13 +129,13 @@ local function WarpComamand(player, args)
                         aviableWarps = aviableWarps .. getText("UI_APTweaks_WarpsList_Separator") .. tostring(existingWarp)
                     end
                 end
-                return {text = string.format(getText("UI_APTweaks_MissingWarp"), warp, aviableWarps)}
+                return {text = format(getText("UI_APTweaks_MissingWarp"), warp, aviableWarps)}
             end
         else
-            return {text = string.format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
+            return {text = format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
         end
     else
-        return {text = string.format(getText("UI_APTweaks_FewArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
+        return {text = format(getText("UI_APTweaks_FewArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
     end
 end
 
@@ -186,6 +150,7 @@ local function SafehouseCommand(player, args)
 
         if #args == 1 then
             local command = args[1]
+            local isAdmin = isAdmin()
             local x, y = math.floor(player:getX()), math.floor(player:getY())
 
             local function removePos()
@@ -197,28 +162,27 @@ local function SafehouseCommand(player, args)
                 local cell = player:getCell()
                 local cellX, cellY = math.floor(cell:getMinX() / 300), math.floor(cell:getMinY() / 300)
                 local cellID = tostring(cellX) .. "," .. tostring(cellY)
-
                 local data = {cellID = cellID, x = x, y = y}
 
                 return {text = "Espere un momento...", commandSend = {command = "claimCommand", data = data}}
 
             elseif command == "pos1" or command == "pos2" then
 
-                if isAdmin() then
+                if isAdmin then
 
-                    if x >= 0 and y >= 0 then
+                    if x >= 0 and y >= 0 and x <= 19799 and y <= 15899 then
                         safehouse[command] = {x = x, y = y}
 
-                        return {text = string.format("Definida la posicion del vertice de area %s en %d,%d.", command, x, y)}
+                        return {text = format("Definida la posicion del vertice de area %s en %d,%d.", command, x, y)}
                     else
-                        return {text = "No puede usar coordenadas negativas."}
+                        return {text = "No puede usar coordenadas fuera del mapa."}
                     end
                 else
                     return {text = "No tiene permitido usar ese comando."}
                 end
             elseif command == "clearposts" then
 
-                if isAdmin() then
+                if isAdmin then
                     removePos()
 
                     return {text = "Se han removido las definiciones de pos1 y pos2 de la memoria temporal."}
@@ -227,7 +191,7 @@ local function SafehouseCommand(player, args)
                 end
             elseif command == "define" then
 
-                if isAdmin() then
+                if isAdmin then
                     local pos1, pos2 = safehouse.pos1, safehouse.pos2
 
                     if pos1 and pos2 then
@@ -236,7 +200,7 @@ local function SafehouseCommand(player, args)
                         if x2 > x1 and y2 > y1 then
 
                             if x2 - x1 < 300 and y2 - y1 < 300 then
-                                local areaID = x1 .. "," .. y2
+                                local areaID = x1 .. "," .. y1
                                 local cx1, cy1, cx2, cy2 = math.floor(x1 / 300), math.floor(y1 / 300), math.floor(x2 / 300), math.floor(y2 / 300)
                                 local cellID = nil
                                 local cells = {}
@@ -247,11 +211,12 @@ local function SafehouseCommand(player, args)
                                         cellID = cx .. "," .. cy
 
                                         if not cells[cellID] then
-                                            cells[cellID] = {x = cx, y = cy, areas = {areaID}}
+                                            cells[cellID] = {}
+                                            table.insert(cells[cellID], areaID)
                                         end
                                     end
                                 end
-                                local data = {areaID = areaID, cellID = cellID, area = {x1= x1, y1= y1, x2= x2, y2 = y2, owner = nil}, cells = cells}
+                                local data = {areaID = areaID, area = {x1= x1, y1= y1, x2= x2, y2 = y2}, cells = cells}
                                 removePos()
 
                                 return {text = "Espere un momento...", commandSend = {command = "safehouseDefineCommand", data = data}}
@@ -302,16 +267,20 @@ local function OnAddMessage(message, tabId)
                 local text = nil
                 local result = nil
 
+                if not sesionID then
+                    sesionID = ZombRandBetween(100, 1000)
+                end
+
                 -- El comando del sistema de mensajería interno.
                 if command == "APTM-" .. sesionID then
                     text = table.concat(args, " ")
 
                 -- El comando warp. 
-                elseif command == getText("UI_APTweaks_WarpCommand") and config.warpSystemEnabled then
+                elseif command == getText("UI_APTweaks_WarpCommand") and SandboxVars.APTweaks.WarpSystemEnabled then
                     result = WarpComamand(player, args)
 
                 -- El comando safezone.
-                elseif command == "safezone" and config.safehouseSystemEnabled then
+                elseif command == "safezone" and SandboxVars.APTweaks.SafehouseSystemEnabled then
                     result = SafehouseCommand(player, args)
                 end
 
@@ -335,20 +304,19 @@ end
 -- En el evento OnServerCommand. Procesa los comandos enviados desde el servidor al cliente que tienen que ver con APTweaks.
 --  Incluye el servicio de mensajería interno y la reclamación de safehouses.
 ---@param module string Suele usarse la ID del mod. Sirve para diferenciar entre comandos enviados por otros mods.
----@param command string El comandos en sí, es como el "asunto" en un correo electronico.
+---@param command string El comando en sí, es como el "asunto" en un correo electrónico.
 ---@param args table Los argumentos del comando. Es una tabla que puede contener cualquier cosa.
 local function OnServerCommand(module, command, args)
 
-    if module == "com.github.abrahampicos.aptweaks" then
-        local text = nil
+    if module == modID then
+        local player = getPlayer()
         local commandSend = nil
-        local player = nil
+        local text = nil
 
         if command == "createSafehouse" then
-            player = getPlayer()
-
             local username = player:getUsername()
-            local owner = nil
+            local sucess = false
+            local data = nil
             -- addSafeHouse(Int X, Int Y, Int W, Int H, String username, boolean remote)
             -- X y Y, representa el vértice desde el que se extenderá la safehouse, y debe estar en la esquina superior izquierda.
             -- W(width) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
@@ -356,14 +324,20 @@ local function OnServerCommand(module, command, args)
             -- No tengo ni la más mínima idea de qué es remote. Podría afectar al cómo se reporta al servidor la existencia del área.
             local safezone = SafeHouse.addSafeHouse(args.x1, args.y1, args.w, args.h, username, false)
 
-            if safezone then
-                owner = username
+            safezone:setTitle("Refugio de " .. username);
+            -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usaondo los métodos
+            --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
+            safezone:setOwner(username);
+            safezone:updateSafehouse(player);
+            safezone:syncSafehouse();
+
+            if safezone ~= nil then
                 text = "Safehouse creada exitosamente."
+                sucess = true
             else
                 text = "Ocurrio un error desconocido al crear la safehouse."
             end
-            local data = {areaID = args.areaID, owner = owner, blocked = username}
-
+            data = {sucess = sucess, areaID = args.areaID, blocked = username}
             commandSend = {command = "claimCommandSucess", data = data}
 
         elseif command == "messageCommand" then
@@ -371,7 +345,12 @@ local function OnServerCommand(module, command, args)
         end
 
         if text then
-            SendCommandToServer("APTM-" .. sesionID .. " " .. text)
+
+            if not sesionID then
+            -- Por alguna razón esto puede dar 100, pero no 1000, así que el número siempre será de 3 dígitos.
+            sesionID = ZombRandBetween(100, 1000)
+            end
+            SendCommandToServer("/APTM-" .. sesionID .. " " .. text)
         end
 
         if commandSend then
@@ -417,15 +396,15 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
                     player:setHaloNote(getText("UI_APTweaks_TeleportCancelled"), 255, 0, 0, 500)
                 end
             end
+
             if player_flags.warpCommandWarp ~= nil then
                 player_flags.warpCommandWarp = nil
             end
-
             player_flags.inWarpCommand = false
         end
-
         player_flags.lastLocation = value
     else
+
         if cooldownFlags then
             RestoreCooldownFlags()
         end
@@ -448,18 +427,18 @@ local function SecondsElapsed(tick, value)
     return secondsElapsed, isWholeSecond
 end
 
--- En el evento OnTickEvenPaused. Verifica constantemente la localización del cliente, de tenerla, y redefine las variables en su
+-- En el evento OnTick. Verifica constantemente la localización del cliente, de tenerla, y redefine las variables en su
 --  tabla de vanderas según la lógica que procesa.
 --- @param tick number
-local function OnTickEvenPaused(tick)
+local function OnTick(tick)
 
     if isClient() then
+        local warpSystemEnabled = SandboxVars.APTweaks.WarpSystemEnabled
+        local afkSystemEnabled = SandboxVars.APTweaks.AfkSystemEnabled
 
-        if config.warpSystemEnabled or config.afkSystemEnabled then
+        if warpSystemEnabled or afkSystemEnabled then
             local player = getPlayer()
-            local playerX = player:getX()
-            local playerY = player:getY()
-            local playerZ = player:getZ()
+            local playerX, playerY, playerZ = player:getX(), player:getY(), player:getZ()
 
             player_flags.player = player
 
@@ -476,7 +455,7 @@ local function OnTickEvenPaused(tick)
                 end
 
                 -- Dentro de este bloque se procesan el teleport delay, y el teleport cooldown. También ocurre la teletransportación.
-                if config.warpSystemEnabled then
+                if warpSystemEnabled then
 
                     if player_flags.warpCommandTickStart ~= nil then
                         local secondsElapsed, isWholeSecond = SecondsElapsed(tick, player_flags.warpCommandTickStart)
@@ -484,10 +463,10 @@ local function OnTickEvenPaused(tick)
                         if isWholeSecond then
 
                             if player_flags.inWarpCommand then
-                                player:setHaloNote(string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(secondsElapsed - config.teleportDelay)), 0, 255, 0, 500)
+                                player:setHaloNote(format(getText("UI_APTweaks_TeleportDelaying"), math.abs(secondsElapsed - SandboxVars.APTweaks.TeleportDelay)), 0, 255, 0, 500)
 
-                                if secondsElapsed == config.teleportDelay then
-                                local location = warps[player_flags.warpCommandWarp]
+                                if secondsElapsed == SandboxVars.APTweaks.TeleportDelay then
+                                    local location = warps[player_flags.warpCommandWarp]
 
                                     -- Es necesario sobreescribir primero la última localización, o volverá ahí luego de la teletransportación.
                                     player:setLx(location.x)
@@ -496,7 +475,7 @@ local function OnTickEvenPaused(tick)
                                     player:setX(location.x)
                                     player:setY(location.y)
                                     player:setZ(location.z)
-                                    player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
+                                    player:setHaloNote(format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
                                     -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
                                     --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
                                     -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
@@ -504,9 +483,9 @@ local function OnTickEvenPaused(tick)
                                     RestorePlayerFlags(true, false, nil)
                                 end
                             else
-                                player_flags.warpCommandCooldownSecondsLeft = math.abs(secondsElapsed - (config.teleportDelay + config.teleportCooldown))
+                                player_flags.warpCommandCooldownSecondsLeft = math.abs(secondsElapsed - (SandboxVars.APTweaks.TeleportDelay + SandboxVars.APTweaks.TeleportCooldown))
 
-                                if secondsElapsed == config.teleportDelay + config.teleportCooldown then
+                                if secondsElapsed == SandboxVars.APTweaks.TeleportDelay + SandboxVars.APTweaks.TeleportCooldown then
                                     RestorePlayerFlags(false, true, nil)
                                 end
                             end
@@ -519,7 +498,7 @@ local function OnTickEvenPaused(tick)
 
                 -- Si el jugador no se ha movido. En este bloque se procesa el tiempo AFK.
                 else
-                    if config.afkSystemEnabled then
+                    if afkSystemEnabled then
 
                         if player_flags.iddleTickStart == nil then
                             player_flags.iddleTickStart = tick
@@ -528,15 +507,16 @@ local function OnTickEvenPaused(tick)
 
                         if isWholeSecond then
 
-                            if secondsElapsed >= config.afkStart then
+                            if secondsElapsed >= SandboxVars.APTweaks.AfkStart then
 
-                                if secondsElapsed == config.afkStart then
+                                if secondsElapsed == SandboxVars.APTweaks.AfkStart then
                                     player_flags.isAfk = true
                                 end
+
                                 if player_flags.isAfk then
                                     player:setHaloNote(getText("UI_APTweaks_Afk"), 255, 0, 0, 500)
 
-                                    if secondsElapsed == config.afkStart + config.afkKick then
+                                    if secondsElapsed == SandboxVars.APTweaks.AfkStart + SandboxVars.APTweaks.AfkKick then
                                         getCore():exitToMenu()
                                     end
                                 end
@@ -555,5 +535,5 @@ end
 
 Events.OnGameStart.Add(OnGameStart)
 Events.OnAddMessage.Add(OnAddMessage)
-Events.OnTickEvenPaused.Add(OnTickEvenPaused)
+Events.OnTick.Add(OnTick)
 Events.OnServerCommand.Add(OnServerCommand)

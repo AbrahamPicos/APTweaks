@@ -1,0 +1,81 @@
+VERSION = 1,
+
+option APTweaks.WarpSystemEnabled
+{
+    type = boolean,
+    default = true,
+
+    page = APTweaks,
+    translation = APTweaks_WarpSystemEnabled,
+}
+
+option APTweaks.AfkSystemEnabled
+{
+    type = boolean,
+    default = true,
+
+    page = APTweaks,
+    translation = APTweaks_AfkSystemEnabled,
+}
+
+option APTweaks.SafehouseSystemEnabled
+{
+    type = boolean,
+    default = true,
+
+    page = APTweaks,
+    translation = APTweaks_SafehouseSystemEnabled,
+}
+
+option APTweaks.AnticheatSystemEnabled
+{
+    type = boolean,
+    default = false,
+
+    page = APTweaks,
+    translation = APTweaks_AnticheatSystemEnabled,
+}
+
+option APTweaks.TeleportDelay
+{
+    type = integer,
+    default = 5,
+    min = 0,
+    max = 3600,
+
+    page = APTweaks,
+    translation = APTweaks_TeleportDelay,
+}
+
+option APTweaks.TeleportCooldown
+{
+    type = integer,
+    default = 30,
+    min = 0,
+    max = 86400,
+
+    page = APTweaks,
+    translation = APTweaks_TeleportCooldown,
+}
+
+option APTweaks.AfkStart
+{
+    type = integer,
+    default = 30,
+    min = 0,
+    max = 86400,
+
+    page = APTweaks,
+    translation = APTweaks_AfkStart,
+}
+
+option APTweaks.AfkKick
+{
+    type = integer,
+    default = 30,
+    min = 0,
+    max = 86400,
+
+    page = APTweaks,
+    translation = APTweaks_AfkKick,
+}
