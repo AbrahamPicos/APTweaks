@@ -2,9 +2,11 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
-require("APTweaks.lua")
-
+-- La ID del mod.
 local modID = "com.github.abrahampicos.aptweaks"
+
+-- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod restrea a los jugadores conectados.
+local onlinePlayers = {}
 
 -- El mapa de datos de APTweaks.
 -- Evidentemente esto no es persistente. Es sólo para la demostración. Está pendiente implementar ModData
@@ -14,24 +16,23 @@ local aptweaks = {
     dataversion = 1,
     -- El submapa de las áreas. Contiene toda la información de las áreas que pueden reclamarse.
     areas = {},
-    -- Un índice que registra las áreas que contiene cada celda para un acceso más rápido con iteraciones.
+    -- El submapa que indexa las áreas por celda.
+    -- APTweaks usa una cuadricula espacial para indexar las áreas, lo que reduce las iteraciones al acceder al mapa de datos.
     cells = {},
-    -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por otro ciente.
-    --  Está aquí para evitar problemas de sincronización.
-    blocked = {},
-    -- El submapa de las áreas en espera. Aquellas que se crearon y están esperando confirmación de haber sido creadas.
-    tracking = {}
+    -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por otro clientes.
+    blocked = {}
 }
 
 -- Las IDs de administradores Permitidas.
+-- Tenga en cuenta que esto no está terminado. En el futuro las IDs se cargarán de un archivo.
 local allowedUsers = {
-    ["76561198978760030"] = "AbrahamPicos"
+    ["76561198978760030"] = "AbrahamPicos" -- Esta no es la ID real de AbrahamPicos.
 }
 
--- El el evento OnServerStarted. Verifica si hay áreas bloqueadas cuando se inicia el servidor, y limpia la tabla.
---  Que queden áreas bloqueadas es anormal, pero puede ocurrir luego de que que el servidor se apage incorrectamente.
---  El servidor bloquea áreas cuando un usuario intenta reclamarlas para evitar que debido lag, puedan crearse varias
---  safehouses en la misma área.
+-- El el evento OnServerStarted. Limpia el submapa de áreas bloqueadas.
+-- APTweaks_server bloquea áreas cuando un usuario intenta reclamarlas para evitar que debido lag, puedan crearse varias
+--  safehouses en la misma área. Que queden áreas bloqueadas es anormal, pero puede ocurrir luego de que que el servidor
+--  se apage incorrectamente.
 local function OnServerStarted()
 
     if aptweaks.blocked ~= {} then
@@ -39,47 +40,41 @@ local function OnServerStarted()
     end
 end
 
--- En el evento on tick. Procesa el anticheat y la eliminación del bloqueo de áreas cuando la creación de la safehouse es
---  exitosa.
+-- Comprueba si hay una safehouse en el área.
+---@param x1 integer Abscisa del vértice superior izquierdo.
+---@param y1 integer Ordenada del vértice superior izquierdo.
+---@param x2 integer Abscisa del vértice inferior derecho.
+---@param y2 integer Ordenada del vértice inferior derecho.
+---@return boolean
+local function IsSafeHouse(x1, y1, x2, y2)
+    return SafeHouse.getSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1) ~= nil
+end
+
+-- En el evento on tick. Registra las conexiones y desconexiones de los clientes. Aquí se procesa lógica relacionada con el
+--  bloqueo de áreas, y el sistema anticheat de APTweaks.
+---@param tick integer El tick actual.
 local function OnTick(tick)
-    local trackingLenght = #aptweaks.tracking
+    local currentPlayers = {}
 
-    -- Espera a que las safehouses creadas por los clientes figuren en el servidor, lo que significa que la creación fue exitosa,
-    --  y luego elimina el bloqueo de esas áreas.
-    -- El servidor rastrea las áreas que debieron crearse del lado del cliente para asegurarse de que existan antes de remover
-    --  el bloqueo del área. Esto es importante, ya que se comprueba del lado del servidor si existe una safehouse en el lugar
-    --  cuando un cliente intenta reclamar una.
-    if trackingLenght >= 1 then
+    -- Por cada jugador conectado. Aquí se buscan las nuevas conexiones, y está la lógica del anticheat.
+    for i = 0, getConnectedPlayers():size() - 1 do
+        local player = getConnectedPlayers():get(i)
+        local username = player:getUsername()
 
-        for i = 1, trackingLenght do
-            local areaID = aptweaks.tracking[i]
-            local area = aptweaks.areas[areaID]
-            local safehouse = SafeHouse.getSafeHouse(area.x1, area.y1, area.x2 - area.x1, area.y2 - area.y1)
+        currentPlayers[username] = true
 
-            if safehouse ~= nil then
-
-                for username, ID in pairs(aptweaks.blocked) do
-
-                    if ID == areaID then
-                        aptweaks.blocked[username] = nil
-                        table.remove(aptweaks.tracking, areaID)
-                        break
-                    end
-                end
-            end
+        -- Si el jugador se acaba de conectar.
+        if not onlinePlayers[username] then
+            onlinePlayers[username] = player
+            triggerEvent("OnPlayerConnected", player)
         end
-    end
 
-    -- Verifica constantemente el nivel de acceso de los jugadores y lo restablece a "None" si no están autorizados a tener un
-    --  nivel de acceso mayor. Esto intenta parchar los exploits para escalar privilegios.
-    if SandboxVars.APTweaks.AnticheatSystemEnabled then
-
-        for i = 0, getOnlinePlayers():size() - 1 do
-            local player = getOnlinePlayers():get(i)
+        -- Si se debe comprobar el nivel de acceso del jugador. Se restablece a "None" si no están autorizados a tener un
+        --  nivel de acceso mayor. Esto intenta parchar los exploits para escalar privilegios.
+        if SandboxVars.APTweaks.AnticheatSystemEnabled then
             local accessLevel = player:getAccessLevel()
 
             if accessLevel ~= "None" then
-                local username = player:getUsername()
                 local steamID = getSteamIDFromUsername(username)
 
                 -- El juego tarda varios ticks en actualizar el nivel de acceso de un jugador cuando se usa setAccessLevel,
@@ -95,18 +90,50 @@ local function OnTick(tick)
             end
         end
     end
+
+    -- Por cada área bloqueada.
+    --  Desbloquea el área si se confirma que la safehouse ha sido creada.
+    for username, areaID in pairs(aptweaks.blocked) do
+        local area = aptweaks.areas[areaID]
+        local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
+
+        if IsSafeHouse(x1, y1, x2, y2) then
+            aptweaks.blocked[username] = nil
+        end
+    end
+
+    -- Por cada jugador en onlinePlayers. Aquí se buscan las desconexiones.
+    for username, player in pairs(onlinePlayers) do
+
+        -- Si un jugador se desconectó.
+        if not currentPlayers[username] then
+            onlinePlayers[username] = nil
+            triggerEvent("OnPlayerDisconnected", player)
+
+            -- Si el jugador tenía un área bloqueada,lo que significa que perdió la conexión antes de añadir el área.
+            if aptweaks.blocked[username] then
+                aptweaks.blocked[username] = nil
+            end
+        end
+    end
 end
 
 -- En el evento OnCLientCommand.
+---comment
+---@param module string
+---@param command string
+---@param player table
+---@param args table
 local function OnClientCommand(module, command, player, args)
 
     if module == modID then
-        local commandSend = {command = "messageCommand"}
+        local result = nil
         local data = nil
 
-        -- Cuando el cliente usó el comando '/safezone claim'. Envia al cliente el comando "createSafehouse" si se cumplen
-        --  las condiciones, bloquea el área en questión, y comienza a restrear la safehouse del lado del servidor.
+        -- Cuando el cliente usó el comando '/safezone claim'. Si se cumplen las condiciones, envia al cliente el comando
+        --  "createSafehouse" , bloquea el área en questión, y comienza a restrear la safehouse del lado del servidor.
         if command == "claimCommand" then
+            -- args = {cellID = cellID, x = x, y = y}
             local cellID = args.cellID
             local isInsideArea = false
 
@@ -114,11 +141,11 @@ local function OnClientCommand(module, command, player, args)
                 local x, y = args.x, args.y
 
                 for i = 1, #aptweaks.cells[cellID] do
-                    local coords = aptweaks.areas[aptweaks.cells[cellID][i]]
-                    local x1, y1, x2, y2 = coords.x1, coords.y1, coords.x2, coords.y2
+                    local area = aptweaks.areas[aptweaks.cells[cellID][i]]
+                    local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
 
                     if x >= x1 and x <= x2 and y >= y1 and y <= y2 then
-                        local areaID = x1 .. "," .. y1
+                        local areaID = tostring(x1) .. "," .. tostring(y1)
                         local isBlocked = false
 
                         isInsideArea = true
@@ -132,20 +159,18 @@ local function OnClientCommand(module, command, player, args)
                         end
 
                         if not isBlocked then
-                            local w, h = (x2 - x1) + 1, (y2 - y1) + 1
-                            local safehouse = SafeHouse.getSafeHouse(x1, y1, w, h)
 
-                            if not safehouse then
+                            if not IsSafeHouse(x1, y1, x2, y2) then
                                 aptweaks.blocked[player:getUsername()] = areaID
-                                table.insert(aptweaks.tracking, args.areaID)
 
-                                data = {areaID = areaID, x1 = x1, y1 = y1, w = w, h = h}
-                                commandSend = {command = "createSafehouse"}
+                                data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}
+                                result = {command = "createSafehouse", data = data}
+
                             else
-                                data = {text = "El area ya esta reclamada."}
+                                result = {text = "El area ya esta reclamada."}
                             end
                         else
-                            data = {text = "Intente mas tarde."}
+                            result = {text = "Intente mas tarde."}
                         end
                         break
                     end
@@ -153,52 +178,70 @@ local function OnClientCommand(module, command, player, args)
             end
 
             if not isInsideArea then
-                data = {text = " No esta dentro de un area reclamable."}
+                result = {text = "No esta dentro de un area reclamable."}
 
             end
+        -- Cuando el cliente ejecutó el comando /safezone define.
         elseif command == "safehouseDefineCommand" then
+            -- args = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
             local areaID = args.areaID
-            local area = args.area
-            local cells = args.cells
-            local messages = {}
 
             if not aptweaks.areas[areaID] then
-                aptweaks.areas[areaID] = area
-                table.insert(messages, "Area añadida exitosamente. Detalles:")
+                local failed = false
+                local insertionAreas = {}
+                local text = {}
 
-                for cellID, areas in pairs(cells) do
+                for cellID, _ in pairs(args.cells) do
+                    local areaNonAddable = false
+                    local firstInsert = false
 
                     if not aptweaks.cells[cellID] then
-                        aptweaks.cells[cellID] = areas
-                        table.insert(messages, "La celda no estaba registrada, asi que se creo e indexo el area. " .. areaID .. " " .. cellID)
+                        firstInsert = true
+                        aptweaks.cells[cellID] = {}
+                        table.insert(text, string.format("[%s] Celda: %s. La celda no esta registrada, asi que se creara e indexara el area.", areaID, cellID))
 
                     else
-                        for i = 1, #areas do
-                            local exists = false
 
-                            for j = 1, #aptweaks.cells[cellID] do
+                        local function IsOverlapping(area1, area2)
+                            return not (area1.x2 < area2.x1 or area1.x1 > area2.x2 or area1.y2 < area2.y1 or area1.y1 > area2.y2)
+                        end
 
-                                if aptweaks.cells[cellID][j] == areaID then
-                                    exists = true
-                                    table.insert(messages, "El area ya existia en el indice de la celda. " .. areaID .. " " .. cellID)
-                                    break
-                                end
+                        for j = 1, #aptweaks.cells[cellID] do
+                            local area2ID = aptweaks.cells[cellID][j]
+
+                            if IsOverlapping(args.area, aptweaks.areas[area2ID]) then
+                                areaNonAddable = true
+                                failed = true
+                                table.insert(text, string.format("[%s] Celda: %s. Error: El area no puede añadirse porque estaria solapando al area %s.", areaID, cellID, area2ID))
+                                break
                             end
+                        end
+                    end
 
-                            if not exists then
-                                table.insert(aptweaks.cells[cellID], areas[i])
-                                 table.insert(messages, "El area se indexo en el indice de la celda. " .. areaID .. " " .. cellID)
-                            end
+                    if not areaNonAddable then
+                        insertionAreas[cellID] = areaID
+
+                        if not firstInsert then
+                        table.insert(text, string.format("[%s] Celda: %s. El area se indexara en el indice de la celda.", areaID, cellID))
                         end
                     end
                 end
 
-                for i = 1, #messages do
-                    local message = {text = messages[i]}
-                    sendServerCommand(player, modID, commandSend.command, message)
+                if not failed then
+                    aptweaks.areas[areaID] = args.area
+
+                    for insertionCellID, insertionAreaID in pairs(insertionAreas) do
+                        table.insert(aptweaks.cells[insertionCellID], insertionAreaID)
+                    end
+                    table.insert(text, 1, "La operacion se completo con exito. Detalles:")
+
+                else
+                    table.insert(text, 1, "La operacion fracaso miserablemente. Detalles:")
                 end
+                result = {text = table.concat(text, "[NL]")}
+
             else
-                data = {text = "Esa area ya existe."}
+                result = {text = "Esa area ya existe."}
             end
 
         -- Cuando el cliente confirma que terminó de procesar el comando "createSafehouse" enviado por el servidor.
@@ -206,9 +249,8 @@ local function OnClientCommand(module, command, player, args)
 
             -- Si el cliente dijo que no pudo crear la safehouse, lo que es un fallo, elimina el bloqueo del área y el rastreo
             --  del área. Si es creada exitosamente, no hace nada para siguir rastreando el área.
-            if not args.success then
+            if not args.sucess then
                 aptweaks.blocked[args.blocked] = nil
-                table.remove(aptweaks.tracking, args.areaID)
             end
 
         -- Usaré esto para experimentación. -AbrahamPicos.
@@ -216,38 +258,20 @@ local function OnClientCommand(module, command, player, args)
             print("something.")
         end
 
-        if data ~= nil then
-            sendServerCommand(player, modID, commandSend.command, data)
-        end
-    end
-end
+        if result then
+            local commandSend = result.command
 
--- Verifica si uno de los usuarios con un área bloqueada salió del servidor.
--- Aunque es poco probable que dos o más jugadores intenten reclamar un área practicamente al mismo tiempo
---   esto está aquí para asegurarse de que no queden áreas bloqueadas hasta el siguiente reinicio
--- Si el cliente se desconectó, y el área no puede encontrarse aún, sinifica que nunca lo hará, así que también se elimina
---  el rastreo del área.
-local function OnDisconnect()
+            data = result.data
 
-    for username, areaID in pairs(aptweaks.blocked) do
-        local online = false
-
-        for i = 0, getOnlinePlayers():size() - 1 do
-
-            if getOnlinePlayers():get(i):getUsername() == username then
-                online = true
-                break
+            if not commandSend then
+                commandSend = "messageCommand"
+                data = result
             end
-        end
-
-        if not online then
-            table.remove(aptweaks.tracking, areaID)
-            aptweaks.blocked[username] = nil
+            sendServerCommand(player, modID, commandSend, data)
         end
     end
 end
 
 Events.OnServerStarted.Add(OnServerStarted)
 Events.OnTick.Add(OnTick)
-Events.OnDisconnect.Add(OnDisconnect)
 Events.OnClientCommand.Add(OnClientCommand)

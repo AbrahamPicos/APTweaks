@@ -3,8 +3,6 @@
 -- Maintainer: AbrahamPicos.
 -- Contributors: Stevej.
 
-require("APTweaks_server.lua")
-
 local Events = Events
 local getText = getText
 local sendClientCommand = sendClientCommand
@@ -68,6 +66,41 @@ local function OnGameStart()
     print("[APTweaksDebug] APTweaks.lua is loaded.")
 end
 
+-- Verifica si la variables sesionID está establecida, y de no estarlo, la establece y devuélve su valor.
+local function CheckSessionID()
+    if not sesionID then
+        -- Por alguna razón esto puede dar 100, pero no 1000, así que el número siempre será de 3 dígitos.
+        sesionID = ZombRandBetween(100, 1000)
+    end
+    return sesionID
+end
+
+-- Procesa la respuesta de los comandos.
+--- @param player table Un IsoPlayer.
+--- @param result table|nil La tabla con el resultado del comando.
+--- @param message table|nil Un ChatMessage. Es el el caso de que la función se llame en el evento OnAddMessage.
+local function ProcessResult(player, result, message)
+
+    if result then
+        local text = result.text
+        local commandSend = result.command
+
+        if commandSend then
+            sendClientCommand(player, modID, commandSend, result.data)
+        end
+
+        if text then
+
+            if message then
+                text = text:gsub("%[NL%]", "\n")
+                message:setText(text)
+            else
+                SendCommandToServer("/APTM-" .. sesionID .. " " .. text)
+            end
+        end
+    end
+end
+
 -- La lógica del comando warp. Siempre que proporcione argumentos válidos, y la lógica para usar la tabla que
 --  responde, puede llamar a esta función desde cualquier otra. 
 --- @param player table Un IsoPlayer.
@@ -84,7 +117,7 @@ local function WarpComamand(player, args)
 
                 if player:getVehicle() == nil then
 
-                    if player_flags.iddleTickStart ~= nil then
+                    if not player:isMoving() then
 
                         if not player_flags.inWarpCommand then
 
@@ -145,12 +178,14 @@ end
 --- @param args table La lista de argumentos.
 --- @return table table Una tabla con la respuesta. Un texto, y un mapa de datos según se requiera.
 local function SafehouseCommand(player, args)
+    local argsLength = #args
 
-    if #args >= 1 then
+    if argsLength >= 1 then
+        local data = nil
+        local command = args[1]
+        local isAdmin = isAdmin()
 
-        if #args == 1 then
-            local command = args[1]
-            local isAdmin = isAdmin()
+        if argsLength == 1 then
             local x, y = math.floor(player:getX()), math.floor(player:getY())
 
             local function removePos()
@@ -162,9 +197,9 @@ local function SafehouseCommand(player, args)
                 local cell = player:getCell()
                 local cellX, cellY = math.floor(cell:getMinX() / 300), math.floor(cell:getMinY() / 300)
                 local cellID = tostring(cellX) .. "," .. tostring(cellY)
-                local data = {cellID = cellID, x = x, y = y}
 
-                return {text = "Espere un momento...", commandSend = {command = "claimCommand", data = data}}
+                data = {cellID = cellID, x = x, y = y}
+                return {text = "Espere un momento...", command = "claimCommand", data = data}
 
             elseif command == "pos1" or command == "pos2" then
 
@@ -203,12 +238,12 @@ local function SafehouseCommand(player, args)
                                 local areaID = x1 .. "," .. y1
                                 local cx1, cy1, cx2, cy2 = math.floor(x1 / 300), math.floor(y1 / 300), math.floor(x2 / 300), math.floor(y2 / 300)
                                 local cellID = nil
-                                local cells = {}
+                                local cells = {} -- cells = {cellID = {areaID}}
 
                                 for cx = cx1, cx2 do
 
                                     for cy = cy1, cy2 do
-                                        cellID = cx .. "," .. cy
+                                        cellID = tostring(cx) .. "," .. tostring(cy)
 
                                         if not cells[cellID] then
                                             cells[cellID] = {}
@@ -216,10 +251,10 @@ local function SafehouseCommand(player, args)
                                         end
                                     end
                                 end
-                                local data = {areaID = areaID, area = {x1= x1, y1= y1, x2= x2, y2 = y2}, cells = cells}
+                                data = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
                                 removePos()
 
-                                return {text = "Espere un momento...", commandSend = {command = "safehouseDefineCommand", data = data}}
+                                return {text = "Espere un momento...", command = "safehouseDefineCommand", data = data}
                             else
                                 return {text = "El area no puede ser mayor o igual a 300 tiles."}
                             end
@@ -227,11 +262,32 @@ local function SafehouseCommand(player, args)
                             return {text = "Es necesario que pos1 este en la esquina superior izquierda del area."}
                         end
                     else
-                        return {text = "Antes debe definir el area con pos1 y pos2."}
+                        return {text = "<RGB:1,0,0>Antes debe definir el area con <RGB:0,0,1><SPACE>pos1 <RGB:1,0,0><SPACE>y <RGB:0,0,1><SPACE>pos2."}
                     end
                 else
                     return {text = "No tiene permitido usar ese comando."}
                 end
+            else
+                return {text = "Uso incorrecto."}
+            end
+        elseif argsLength == 2 then
+
+            if command == "undefine" then
+                    local subcommand = args[2]
+
+                    if subcommand == "all" then
+                        return {text = "Espere un momento...", command = "crearAllData", data = {}}
+                    else
+                        local x, y = subcommand:match("(%d+),(%d+)")
+
+                        if x and y then
+                            data = {area = subcommand}
+
+                            return {text = "Espere un momento...", command = "RemoveArea", data = data}
+                        else
+                            return {text = "Debe proporcionar una ID de area valida. Por ejemplo: 3401,2820."}
+                        end
+                    end
             else
                 return {text = "Uso incorrecto."}
             end
@@ -264,16 +320,13 @@ local function OnAddMessage(message, tabId)
             if words[1] == "Unknown" and words[2] == "command" then
                 local command = words[3]
                 local args  = {unpack(words, 4)}
-                local text = nil
                 local result = nil
 
-                if not sesionID then
-                    sesionID = ZombRandBetween(100, 1000)
-                end
+                CheckSessionID()
 
                 -- El comando del sistema de mensajería interno.
                 if command == "APTM-" .. sesionID then
-                    text = table.concat(args, " ")
+                    result = {text = table.concat(args, " ")}
 
                 -- El comando warp. 
                 elseif command == getText("UI_APTweaks_WarpCommand") and SandboxVars.APTweaks.WarpSystemEnabled then
@@ -283,19 +336,7 @@ local function OnAddMessage(message, tabId)
                 elseif command == "safezone" and SandboxVars.APTweaks.SafehouseSystemEnabled then
                     result = SafehouseCommand(player, args)
                 end
-
-                if result then
-                    text = result.text
-                    local commandSend = result.commandSend
-
-                    if commandSend then
-                        sendClientCommand(player, modID, commandSend.command, commandSend.data)
-                    end
-                end
-
-                if text then
-                message:setText(text)
-                end
+                ProcessResult(player, result, message)
             end
         end
     end
@@ -310,52 +351,37 @@ local function OnServerCommand(module, command, args)
 
     if module == modID then
         local player = getPlayer()
-        local commandSend = nil
-        local text = nil
+        local result = nil
+        local data = nil
+
+        CheckSessionID()
 
         if command == "createSafehouse" then
             local username = player:getUsername()
             local sucess = false
-            local data = nil
-            -- addSafeHouse(Int X, Int Y, Int W, Int H, String username, boolean remote)
-            -- X y Y, representa el vértice desde el que se extenderá la safehouse, y debe estar en la esquina superior izquierda.
-            -- W(width) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina superior derecha.
-            -- H(height) es el largo que se expandirá el área a partir de dicho vértice en dirección a la esquina inferior izquieda. 
-            -- No tengo ni la más mínima idea de qué es remote. Podría afectar al cómo se reporta al servidor la existencia del área.
-            local safezone = SafeHouse.addSafeHouse(args.x1, args.y1, args.w, args.h, username, false)
-
-            safezone:setTitle("Refugio de " .. username);
-            -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usaondo los métodos
-            --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
-            safezone:setOwner(username);
-            safezone:updateSafehouse(player);
-            safezone:syncSafehouse();
+            local text = nil
+            local x1, y1, x2, y2 = args.x1, args.y1, args.x2, args.y2
+            local safezone = SafeHouse.addSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1, username, false)
 
             if safezone ~= nil then
+                safezone:setTitle("Refugio de " .. username);
+                -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usando los métodos
+                --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
+                safezone:setOwner(username);
+                safezone:updateSafehouse(player);
+                safezone:syncSafehouse();
                 text = "Safehouse creada exitosamente."
                 sucess = true
             else
                 text = "Ocurrio un error desconocido al crear la safehouse."
             end
             data = {sucess = sucess, areaID = args.areaID, blocked = username}
-            commandSend = {command = "claimCommandSucess", data = data}
+            result = {text = text, command = "claimCommandSucess", data = data}
 
         elseif command == "messageCommand" then
-            text = args.text
+            result = {text = args.text}
         end
-
-        if text then
-
-            if not sesionID then
-            -- Por alguna razón esto puede dar 100, pero no 1000, así que el número siempre será de 3 dígitos.
-            sesionID = ZombRandBetween(100, 1000)
-            end
-            SendCommandToServer("/APTM-" .. sesionID .. " " .. text)
-        end
-
-        if commandSend then
-            sendClientCommand(player, modID, commandSend.command, commandSend.data)
-        end
+        ProcessResult(player, result, nil)
     end
 end
 
@@ -492,6 +518,7 @@ local function OnTick(tick)
                         end
                     end
                 end
+
                 -- Si el jugador se movió.
                 if playerX ~= player_flags.lastLocation.x or playerY ~= player_flags.lastLocation.y or playerZ ~= player_flags.lastLocation.z then
                     RestorePlayerFlags(true, true, {x = playerX, y = playerY, z = playerZ})
