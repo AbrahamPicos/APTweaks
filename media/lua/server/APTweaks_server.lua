@@ -7,6 +7,8 @@ local modID = "com.github.abrahampicos.aptweaks"
 
 -- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod restrea a los jugadores conectados.
 local onlinePlayers = {}
+-- La tabla de los jugadores que se están teletransportando. Se usa para restablecer sus coordenadas hasta que sean teletransportandos.
+local inTeleport = {}
 
 -- El mapa de datos de APTweaks.
 -- Evidentemente esto no es persistente. Es sólo para la demostración. Está pendiente implementar ModData
@@ -114,6 +116,16 @@ local function OnTick(tick)
             if aptweaks.blocked[username] then
                 aptweaks.blocked[username] = nil
             end
+        end
+    end
+
+    for username, location in pairs(inTeleport) do
+        local player = getPlayerFromUsername(username)
+
+        if player ~= nil then
+            player:setLx(location.x)
+            player:setLy(location.y)
+            player:setLz(location.z)
         end
     end
 end
@@ -260,8 +272,11 @@ local function OnClientCommand(module, command, player, args)
             elseif command == "teleportPlayer" then
                 local x, y, z = args.x, args.y, args.z
 
-                player:setLocation(x, y, z)
+                inTeleport[player:getUsername()] = {x = x, y = y, z = z}
                 result = {command = "playerTeleported", data = {x = x, y = y, z = z}}
+
+            elseif command == "teleportSuccess" then
+                inTeleport[player:getUsername()] = nil
 
             -- Usaré esto para experimentación. -AbrahamPicos.
             elseif command == "something" then

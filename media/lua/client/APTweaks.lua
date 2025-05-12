@@ -446,6 +446,7 @@ local function OnServerCommand(module, command, args)
             -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
             --  inmediatamente al siguente tick. Es una medida de escape.
             RestorePlayerFlags(true, false, nil)
+            result = {command = "teleportSuccess", data = {}}
 
         elseif command == "messageCommand" then
             result = {text = args.text}
