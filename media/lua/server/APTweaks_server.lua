@@ -121,11 +121,15 @@ local function OnTick(tick)
 
     for username, location in pairs(inTeleport) do
         local player = getPlayerFromUsername(username)
+        local x, y ,z = location.x, location.y, location.y
 
         if player ~= nil then
-            player:setLx(location.x)
-            player:setLy(location.y)
-            player:setLz(location.z)
+            player:setLx(x)
+            player:setLy(y)
+            player:setLz(z)
+            player:setX(x)
+            player:setY(y)
+            player:setZ(z)
         end
     end
 end
