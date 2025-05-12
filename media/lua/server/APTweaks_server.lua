@@ -260,9 +260,7 @@ local function OnClientCommand(module, command, player, args)
             elseif command == "teleportPlayer" then
                 local x, y, z = args.x, args.y, args.z
 
-                player:setLx(x)
-                player:setLy(y)
-                player:setLz(z)
+                player:setLocation(x, y, z)
                 result = {command = "playerTeleported", data = {x = x, y = y, z = z}}
 
             -- Usaré esto para experimentación. -AbrahamPicos.
