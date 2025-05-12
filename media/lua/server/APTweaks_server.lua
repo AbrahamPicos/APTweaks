@@ -126,148 +126,161 @@ end
 ---@param args table
 local function OnClientCommand(module, command, player, args)
 
-    if module == modID then
-        local result = nil
-        local data = nil
+    -- Si el jugador no se desconectó para el momento en que se procesa su comando.
+    if player ~= nil then
 
-        -- Cuando el cliente usó el comando '/safezone claim'. Si se cumplen las condiciones, envia al cliente el comando
-        --  "createSafehouse" , bloquea el área en questión, y comienza a restrear la safehouse del lado del servidor.
-        if command == "claimCommand" then
-            -- args = {cellID = cellID, x = x, y = y}
-            local cellID = args.cellID
-            local isInsideArea = false
+        if module == modID then
+            local result = nil
+            local data = nil
 
-            if aptweaks.cells[cellID] then
-                local x, y = args.x, args.y
+            -- Cuando el cliente usó el comando '/safezone claim'. Si se cumplen las condiciones, envia al cliente el comando
+            --  "createSafehouse" , bloquea el área en questión, y comienza a restrear la safehouse del lado del servidor.
+            if command == "claimCommand" then
+                -- args = {cellID = cellID, x = x, y = y}
+                local cellID = args.cellID
+                local isInsideArea = false
 
-                for i = 1, #aptweaks.cells[cellID] do
-                    local area = aptweaks.areas[aptweaks.cells[cellID][i]]
-                    local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
+                if aptweaks.cells[cellID] then
+                    local x, y = args.x, args.y
 
-                    if x >= x1 and x <= x2 and y >= y1 and y <= y2 then
-                        local areaID = tostring(x1) .. "," .. tostring(y1)
-                        local isBlocked = false
+                    for i = 1, #aptweaks.cells[cellID] do
+                        local area = aptweaks.areas[aptweaks.cells[cellID][i]]
+                        local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
 
-                        isInsideArea = true
+                        if x >= x1 and x <= x2 and y >= y1 and y <= y2 then
+                            local areaID = tostring(x1) .. "," .. tostring(y1)
+                            local isBlocked = false
 
-                        for _, ID in pairs(aptweaks.blocked) do
+                            isInsideArea = true
 
-                            if ID == areaID then
-                                isBlocked = true
-                                break
+                            for _, ID in pairs(aptweaks.blocked) do
+
+                                if ID == areaID then
+                                    isBlocked = true
+                                    break
+                                end
                             end
-                        end
 
-                        if not isBlocked then
+                            if not isBlocked then
 
-                            if not IsSafeHouse(x1, y1, x2, y2) then
-                                aptweaks.blocked[player:getUsername()] = areaID
+                                if not IsSafeHouse(x1, y1, x2, y2) then
+                                    aptweaks.blocked[player:getUsername()] = areaID
 
-                                data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}
-                                result = {command = "createSafehouse", data = data}
+                                    data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}
+                                    result = {command = "createSafehouse", data = data}
 
+                                else
+                                    result = {text = "El area ya esta reclamada."}
+                                end
                             else
-                                result = {text = "El area ya esta reclamada."}
+                                result = {text = "Intente mas tarde."}
                             end
-                        else
-                            result = {text = "Intente mas tarde."}
+                            break
                         end
-                        break
                     end
                 end
-            end
 
-            if not isInsideArea then
-                result = {text = "No esta dentro de un area reclamable."}
+                if not isInsideArea then
+                    result = {text = "No esta dentro de un area reclamable."}
 
-            end
-        -- Cuando el cliente ejecutó el comando /safezone define.
-        elseif command == "safehouseDefineCommand" then
-            -- args = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
-            local areaID = args.areaID
+                end
+            -- Cuando el cliente ejecutó el comando /safezone define.
+            elseif command == "safehouseDefineCommand" then
+                -- args = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
+                local areaID = args.areaID
 
-            if not aptweaks.areas[areaID] then
-                local failed = false
-                local insertionAreas = {}
-                local text = {}
+                if not aptweaks.areas[areaID] then
+                    local failed = false
+                    local insertionAreas = {}
+                    local text = {}
 
-                for cellID, _ in pairs(args.cells) do
-                    local areaNonAddable = false
-                    local firstInsert = false
+                    for cellID, _ in pairs(args.cells) do
+                        local areaNonAddable = false
+                        local firstInsert = false
 
-                    if not aptweaks.cells[cellID] then
-                        firstInsert = true
-                        aptweaks.cells[cellID] = {}
-                        table.insert(text, string.format("[%s] Celda: %s. La celda no esta registrada, asi que se creara e indexara el area.", areaID, cellID))
+                        if not aptweaks.cells[cellID] then
+                            firstInsert = true
+                            aptweaks.cells[cellID] = {}
+                            table.insert(text, string.format("[%s] Celda: %s. La celda no esta registrada, asi que se creara e indexara el area.", areaID, cellID))
+
+                        else
+
+                            local function IsOverlapping(area1, area2)
+                                return not (area1.x2 < area2.x1 or area1.x1 > area2.x2 or area1.y2 < area2.y1 or area1.y1 > area2.y2)
+                            end
+
+                            for j = 1, #aptweaks.cells[cellID] do
+                                local area2ID = aptweaks.cells[cellID][j]
+
+                                if IsOverlapping(args.area, aptweaks.areas[area2ID]) then
+                                    areaNonAddable = true
+                                    failed = true
+                                    table.insert(text, string.format("[%s] Celda: %s. Error: El area no puede añadirse porque estaria solapando al area %s.", areaID, cellID, area2ID))
+                                    break
+                                end
+                            end
+                        end
+
+                        if not areaNonAddable then
+                            insertionAreas[cellID] = areaID
+
+                            if not firstInsert then
+                            table.insert(text, string.format("[%s] Celda: %s. El area se indexara en el indice de la celda.", areaID, cellID))
+                            end
+                        end
+                    end
+
+                    if not failed then
+                        aptweaks.areas[areaID] = args.area
+
+                        for insertionCellID, insertionAreaID in pairs(insertionAreas) do
+                            table.insert(aptweaks.cells[insertionCellID], insertionAreaID)
+                        end
+                        table.insert(text, 1, "La operacion se completo con exito. Detalles:")
 
                     else
-
-                        local function IsOverlapping(area1, area2)
-                            return not (area1.x2 < area2.x1 or area1.x1 > area2.x2 or area1.y2 < area2.y1 or area1.y1 > area2.y2)
-                        end
-
-                        for j = 1, #aptweaks.cells[cellID] do
-                            local area2ID = aptweaks.cells[cellID][j]
-
-                            if IsOverlapping(args.area, aptweaks.areas[area2ID]) then
-                                areaNonAddable = true
-                                failed = true
-                                table.insert(text, string.format("[%s] Celda: %s. Error: El area no puede añadirse porque estaria solapando al area %s.", areaID, cellID, area2ID))
-                                break
-                            end
-                        end
+                        table.insert(text, 1, "La operacion fracaso miserablemente. Detalles:")
                     end
-
-                    if not areaNonAddable then
-                        insertionAreas[cellID] = areaID
-
-                        if not firstInsert then
-                        table.insert(text, string.format("[%s] Celda: %s. El area se indexara en el indice de la celda.", areaID, cellID))
-                        end
-                    end
-                end
-
-                if not failed then
-                    aptweaks.areas[areaID] = args.area
-
-                    for insertionCellID, insertionAreaID in pairs(insertionAreas) do
-                        table.insert(aptweaks.cells[insertionCellID], insertionAreaID)
-                    end
-                    table.insert(text, 1, "La operacion se completo con exito. Detalles:")
+                    result = {text = table.concat(text, "[NL]")}
 
                 else
-                    table.insert(text, 1, "La operacion fracaso miserablemente. Detalles:")
+                    result = {text = "Esa area ya existe."}
                 end
-                result = {text = table.concat(text, "[NL]")}
 
-            else
-                result = {text = "Esa area ya existe."}
+            -- Cuando el cliente confirma que terminó de procesar el comando "createSafehouse" enviado por el servidor.
+            elseif command == "claimCommandSucess" then
+
+                -- Si el cliente dijo que no pudo crear la safehouse, lo que es un fallo, elimina el bloqueo del área y el rastreo
+                --  del área. Si es creada exitosamente, no hace nada para siguir rastreando el área.
+                if not args.sucess then
+                    aptweaks.blocked[args.blocked] = nil
+                end
+
+            -- Si el cliente envió el comando teleportPlayer. Teletransporta del lado del servidor al cliente.
+            elseif command == "teleportPlayer" then
+                local x, y, z = args.x, args.y, args.z
+
+                player:setLx(x)
+                player:setLy(y)
+                player:setLz(z)
+                result = {command = "playerTeleported", data = {x = x, y = y, z = z}}
+
+            -- Usaré esto para experimentación. -AbrahamPicos.
+            elseif command == "something" then
+                print("something.")
             end
 
-        -- Cuando el cliente confirma que terminó de procesar el comando "createSafehouse" enviado por el servidor.
-        elseif command == "claimCommandSucess" then
+            if result then
+                local commandSend = result.command
 
-            -- Si el cliente dijo que no pudo crear la safehouse, lo que es un fallo, elimina el bloqueo del área y el rastreo
-            --  del área. Si es creada exitosamente, no hace nada para siguir rastreando el área.
-            if not args.sucess then
-                aptweaks.blocked[args.blocked] = nil
+                data = result.data
+
+                if not commandSend then
+                    commandSend = "messageCommand"
+                    data = result
+                end
+                sendServerCommand(player, modID, commandSend, data)
             end
-
-        -- Usaré esto para experimentación. -AbrahamPicos.
-        elseif command == "something" then
-            print("something.")
-        end
-
-        if result then
-            local commandSend = result.command
-
-            data = result.data
-
-            if not commandSend then
-                commandSend = "messageCommand"
-                data = result
-            end
-            sendServerCommand(player, modID, commandSend, data)
         end
     end
 end

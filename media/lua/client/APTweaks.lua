@@ -38,6 +38,8 @@ local player_flags = {
     --- El jugador asociado al cliente. Se establece a un IsoPlayer si existe en el evento OnTick. Se reestablece a nil si
     ---  deja de existir.
     player = nil;
+    --- Si el jugador ha enviado al servidor una solicitud de teletransporte.
+    InTeleport = false;
     --- La última localización del jugador. Se reajusta en cada tick si su localización ha cambiado.
     lastLocation = {x = nil, y = nil, z = nil};
     --- Es el tick a partir del cual el jugador ha estado quieto. Se reestablece a nil si el jugador se mueve.
@@ -342,49 +344,6 @@ local function OnAddMessage(message, tabId)
     end
 end
 
--- En el evento OnServerCommand. Procesa los comandos enviados desde el servidor al cliente que tienen que ver con APTweaks.
---  Incluye el servicio de mensajería interno y la reclamación de safehouses.
----@param module string Suele usarse la ID del mod. Sirve para diferenciar entre comandos enviados por otros mods.
----@param command string El comando en sí, es como el "asunto" en un correo electrónico.
----@param args table Los argumentos del comando. Es una tabla que puede contener cualquier cosa.
-local function OnServerCommand(module, command, args)
-
-    if module == modID then
-        local player = getPlayer()
-        local result = nil
-        local data = nil
-
-        CheckSessionID()
-
-        if command == "createSafehouse" then
-            local username = player:getUsername()
-            local sucess = false
-            local text = nil
-            local x1, y1, x2, y2 = args.x1, args.y1, args.x2, args.y2
-            local safezone = SafeHouse.addSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1, username, false)
-
-            if safezone ~= nil then
-                safezone:setTitle("Refugio de " .. username);
-                -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usando los métodos
-                --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
-                safezone:setOwner(username);
-                safezone:updateSafehouse(player);
-                safezone:syncSafehouse();
-                text = "Safehouse creada exitosamente."
-                sucess = true
-            else
-                text = "Ocurrio un error desconocido al crear la safehouse."
-            end
-            data = {sucess = sucess, areaID = args.areaID, blocked = username}
-            result = {text = text, command = "claimCommandSucess", data = data}
-
-        elseif command == "messageCommand" then
-            result = {text = args.text}
-        end
-        ProcessResult(player, result, nil)
-    end
-end
-
 -- Restaura las vanderas del jugador a sus valores por defecto para su posterior reutilización.
 --- @param allFlags boolean Si debe hacerse un hard restore, lo que borrará todas las vanderas.
 --- @param cooldownFlags boolean Si deberían borrarse las vanderas de cooldown, independientemente de todas las demás.
@@ -423,6 +382,10 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
                 end
             end
 
+            if player_flags.InTeleport then
+                player_flags.InTeleport = false
+            end
+
             if player_flags.warpCommandWarp ~= nil then
                 player_flags.warpCommandWarp = nil
             end
@@ -434,6 +397,65 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
         if cooldownFlags then
             RestoreCooldownFlags()
         end
+    end
+end
+
+-- En el evento OnServerCommand. Procesa los comandos enviados desde el servidor al cliente que tienen que ver con APTweaks.
+--  Incluye el servicio de mensajería interno y la reclamación de safehouses.
+---@param module string Suele usarse la ID del mod. Sirve para diferenciar entre comandos enviados por otros mods.
+---@param command string El comando en sí, es como el "asunto" en un correo electrónico.
+---@param args table Los argumentos del comando. Es una tabla que puede contener cualquier cosa.
+local function OnServerCommand(module, command, args)
+
+    if module == modID then
+        local player = getPlayer()
+        local result = nil
+        local data = nil
+
+        CheckSessionID()
+
+        if command == "createSafehouse" then
+            local username = player:getUsername()
+            local sucess = false
+            local text = nil
+            local x1, y1, x2, y2 = args.x1, args.y1, args.x2, args.y2
+            local safezone = SafeHouse.addSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1, username, false)
+
+            if safezone ~= nil then
+                safezone:setTitle("Refugio de " .. username);
+                -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usando los métodos
+                --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
+                safezone:setOwner(username);
+                safezone:updateSafehouse(player);
+                safezone:syncSafehouse();
+                text = "Safehouse creada exitosamente."
+                sucess = true
+            else
+                text = "Ocurrio un error desconocido al crear la safehouse."
+            end
+            data = {sucess = sucess, areaID = args.areaID, blocked = username}
+            result = {text = text, command = "claimCommandSucess", data = data}
+
+        elseif command == "playerTeleported" then
+            local x, y ,z = args.x, args.y, args.z
+
+            player:setHaloNote(format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
+            player:setLx(x)
+            player:setLy(y)
+            player:setLz(z)
+            player:setX(x)
+            player:setY(y)
+            player:setZ(z)
+            -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
+            --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
+            -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
+            --  inmediatamente al siguente tick. Es una medida de escape.
+            RestorePlayerFlags(true, false, nil)
+
+        elseif command == "messageCommand" then
+            result = {text = args.text}
+        end
+        ProcessResult(player, result, nil)
     end
 end
 
@@ -483,7 +505,7 @@ local function OnTick(tick)
                 -- Dentro de este bloque se procesan el teleport delay, y el teleport cooldown. También ocurre la teletransportación.
                 if warpSystemEnabled then
 
-                    if player_flags.warpCommandTickStart ~= nil then
+                    if player_flags.warpCommandTickStart ~= nil and player_flags.InTeleport == false then
                         local secondsElapsed, isWholeSecond = SecondsElapsed(tick, player_flags.warpCommandTickStart)
 
                         if isWholeSecond then
@@ -494,19 +516,8 @@ local function OnTick(tick)
                                 if secondsElapsed == SandboxVars.APTweaks.TeleportDelay then
                                     local location = warps[player_flags.warpCommandWarp]
 
-                                    -- Es necesario sobreescribir primero la última localización, o volverá ahí luego de la teletransportación.
-                                    player:setLx(location.x)
-                                    player:setLy(location.y)
-                                    player:setLz(location.z)
-                                    player:setX(location.x)
-                                    player:setY(location.y)
-                                    player:setZ(location.z)
-                                    player:setHaloNote(format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
-                                    -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
-                                    --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
-                                    -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
-                                    --  inmediatamente al siguente tick. Es una medida de escape.
-                                    RestorePlayerFlags(true, false, nil)
+                                    player_flags.InTeleport = true
+                                    sendClientCommand(player, modID, "teleportPlayer", location)
                                 end
                             else
                                 player_flags.warpCommandCooldownSecondsLeft = math.abs(secondsElapsed - (SandboxVars.APTweaks.TeleportDelay + SandboxVars.APTweaks.TeleportCooldown))
