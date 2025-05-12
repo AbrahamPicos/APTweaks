@@ -440,7 +440,7 @@ local function OnServerCommand(module, command, args)
             local x, y ,z = args.x, args.y, args.z
 
             player:setHaloNote(format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
-            player:setLocation(x, y, z)
+            player:setPosition(x, y, z)
             -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
             --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
             -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
