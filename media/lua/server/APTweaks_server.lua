@@ -276,10 +276,12 @@ local function OnClientCommand(module, command, player, args)
             elseif command == "teleportPlayer" then
                 local x, y, z = args.x, args.y, args.z
 
+                player:setAccessLevel("observer")
                 inTeleport[player:getUsername()] = {x = x, y = y, z = z}
                 result = {command = "playerTeleported", data = {x = x, y = y, z = z}}
 
             elseif command == "teleportSuccess" then
+                player:setAccessLevel("none")
                 inTeleport[player:getUsername()] = nil
 
             -- Usaré esto para experimentación. -AbrahamPicos.
