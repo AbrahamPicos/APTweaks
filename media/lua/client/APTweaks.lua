@@ -439,14 +439,20 @@ local function OnServerCommand(module, command, args)
         elseif command == "playerTeleported" then
             local x, y ,z = args.x, args.y, args.z
 
-            SendCommandToServer("/teleportto " .. tostring(x) .. "," .. tostring(y) .. "," .. tostring(z))
+            player:setAccessLevel("observer")
+            --player:setX(x)
+            --player:setY(y)
+            --player:setZ(z)
+            --player:setLx(x)
+            --player:setLy(y)
+            --player:setLz(z)
+            player:setAccessLevel("none")
             player:setHaloNote(format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
             -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
             --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
             -- Aún así las vanderas deben limpiarse ahora para asegurarse de que el comando esté disponble
             --  inmediatamente al siguente tick. Es una medida de escape.
             RestorePlayerFlags(true, false, nil)
-            player:setNetworkTeleportEnabled(false)
             result = {command = "teleportSuccess", data = {}}
 
         elseif command == "messageCommand" then
@@ -513,7 +519,6 @@ local function OnTick(tick)
                                 if secondsElapsed == SandboxVars.APTweaks.TeleportDelay then
                                     local location = warps[player_flags.warpCommandWarp]
 
-                                    player:setNetworkTeleportEnabled(true)
                                     player_flags.InTeleport = true
                                     sendClientCommand(player, modID, "teleportPlayer", location)
                                 end
