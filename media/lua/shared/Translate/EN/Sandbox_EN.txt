@@ -1,0 +1,27 @@
+Sandbox_ES = {
+	Sandbox_APTweaks = "APTweaks",
+
+	Sandbox_APTweaks_WarpSystemEnabled = "Warp system",
+	Sandbox_APTweaks_WarpSystemEnabled_tooltip = "Whether the APTweaks warp system will be used.",
+
+	Sandbox_APTweaks_AfkSystemEnabled = "AFK system",
+	Sandbox_APTweaks_AfkSystemEnabled_tooltip = "Whether APTweaks' anti-AFK system will be used.",
+
+	Sandbox_APTweaks_SafehouseSystemEnabled = "Buildingless safehouse system",
+	Sandbox_APTweaks_SafehouseSystemEnabled_tooltip = "Whether the APTweaks buildingless safehouse system will be used.",
+
+	Sandbox_APTweaks_AnticheatSystemEnabled = "Anticheat system",
+	Sandbox_APTweaks_AnticheatSystemEnabled_tooltip = "Whether the APTweaks anticheat system will be used.",
+
+	Sandbox_APTweaks_TeleportDelay = "Teleport delay",
+	Sandbox_APTweaks_TeleportDelay_tooltip = "The seconds the player must remain still to be teleported.",
+
+	Sandbox_APTweaks_TeleportCooldown = "Teleport cooldown",
+	Sandbox_APTweaks_TeleportCooldown_tooltip = "The seconds the player must wait before being able to teleport again.",
+
+	Sandbox_APTweaks_AfkStart = "AFK start",
+	Sandbox_APTweaks_AfkStart_tooltip = "The seconds the player must remain still to be considered AFK.",
+
+	Sandbox_APTweaks_AfkKick = "AFK kick",
+	Sandbox_APTweaks_AfkKick_tooltip = "The seconds the player must remain still after being considered AFK to be kicked from the server."
+}
