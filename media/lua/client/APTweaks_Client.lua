@@ -24,6 +24,9 @@ local getPlayer = aptweaks.getPlayer
 local SafeHouse = aptweaks.SafeHouse
 local sendClientCommand = aptweaks.sendClientCommand
 
+local ISChat = ISChat
+local doKeyPress = doKeyPress
+local stringStarts = luautils.stringStarts
 -- El mapa de datos de APTweaks. Se obtiene desde el servidor.
 local aptweaks_data
 -- Un contador experimental para probar si usar GameTime gettimedelta puede volver consistente el tiempo.
@@ -79,7 +82,6 @@ local old_onCommandEntered = ISChat.onCommandEntered
 
 -- Una función provisional para probar si esto está funcionando.
 local function ProcessAptweaksCommand(command, args)
-    NewChatLine("pene", 1)
     print("Ejecutaste el comando de APTweaks: " .. command)
 end
 
@@ -104,11 +106,11 @@ function ISChat:onCommandEntered()
 
                 -- stringStarts devuelve true si el primer string coincide con el segundo, pero sólo los compara hasta el tamaño
                 --   del segundo string. Es decir que por ejemplo: `stringStarts("holaquehace", "holaq")` será true.
-                if luautils.stringStarts(textEntry, command.command) then
+                if stringStarts(textEntry, command.command) then
                     aptweaksCommand = command.command
 
                 -- Actualmente ningún comando de APTweaks tiene una versión corta, pero dejé esto por si acaso.
-                elseif command.shortCommand and luautils.stringStarts(textEntry, command.shortCommand) then
+                elseif command.shortCommand and stringStarts(textEntry, command.shortCommand) then
                     aptweaksCommand = command.shortCommand
                 end
 

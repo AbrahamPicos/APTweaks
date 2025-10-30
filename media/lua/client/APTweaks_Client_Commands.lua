@@ -5,7 +5,6 @@
 
 local commands, aptweaks = {}, require("APTweaks")
 
-local isClient = aptweaks.isClient
 local isAdmin = aptweaks.isAdmin
 local getText = aptweaks.getText
 
