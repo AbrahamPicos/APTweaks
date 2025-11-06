@@ -5,8 +5,6 @@
 local aptweaks = {}
     -- La ID del mod.
     aptweaks.modID = "com.github.abrahampicos.aptweaks"
-    -- El Número que identificar la sesión actual. Se usa para diferenciar el sistema de mensajería interno.
-    aptweaks.sessionID = nil
     -- El mapa de datos de APTweaks. Se define aquí como una tabla rellenable para ser accesible desde todos los módulos.
     aptweaks.aptweaks_data = {}
     -- Referencias a Funciones incorporadas en Lua.
@@ -50,9 +48,36 @@ local sendServerCommand = aptweaks.sendServerCommand
 local SendCommandToServer = aptweaks.SendCommandToServer
 
 aptweaks.sessionID = ZombRandBetween(100, 1000)
+-- Variables para el jugador controladas por el evento tick; Son útiles para el comando warp y el sistema AFK.
+aptweaks.player_flags = {
+    -- El jugador asociado al cliente. Se establece a un IsoPlayer si existe en el evento OnTick. Se reestablece a nil si
+    --- deja de existir.
+    player = nil,
+    -- Si el jugador ha enviado al servidor una solicitud de teletransporte.
+    InTeleport = false,
+    -- La última localización del jugador. Se reajusta en cada tick si su localización ha cambiado.
+    lastLocation = {x = nil, y = nil, z = nil},
+    -- Es el tick a partir del cual el jugador ha estado quieto. Se reestablece a nil si el jugador se mueve.
+    iddleTickStart = nil,
+    -- Si el jugador está AFK. Se establece en true si iddleTickStart ha sido diferente de nil durante AfkStart segundos.
+    --- Se reestablece a false si el jugador se mueve.
+    isAfk = false,
+    -- Si el jugador está ejecutando el comando warp. Se establece en true cuando el jugador usó el comando warp. Se
+    --- reestablece a false si el jugador se movió o fue teletransportado.
+    inWarpCommand = false,
+    -- El warp al que el jugador se teletransportará al finalizar TeleportDelay si inWarpCommand es true. Se establece como
+    --- args[1] cuando este puede usarse como indice para obtener coordenadas en la tabla warps. Se reestablece a false si
+    --- el jugador se movió o fue teletransportado.
+    warpCommandWarp = nil,
+    -- El tick cuando inició el comando warp. Se establece como el número de tick en el que inWarpCommand se estableció como
+    --- true. Se reestablece a nil si el jugador se movió o fue teletransportado.
+    warpCommandTickStart = nil,
+    -- La cantidad de segundos que faltan para que el jugador pueda teletransportarse otra vez. Sólo se usa para el mensaje de
+    --- error que el jugador ve cuando intenta teletrasportarse en cooldown. Se reestablece a nil cuando ha pasado el tiempo en
+    --- TeleportDelay.
+    warpCommandCooldownSecondsLeft = nil}
 
 local modID = aptweaks.modID
-local sessionID = aptweaks.sessionID
 
 -- Comprueba si hay una safehouse en un área.
 ---@param x1 integer Abscisa del vértice superior izquierdo.
@@ -64,11 +89,36 @@ function aptweaks.IsSafeHouse(x1, y1, x2, y2)
     return SafeHouse.getSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1) ~= nil
 end
 
+-- Crea un ChatMessge falso para usarlo con la función `ISChat.addLineInChat`.
+---@param size string El tamaño del texto. Puede cambiarse luego con setSize(). Puede ser "small", "medium", y "large".
+---@param text string El texto del mensaje.
+---@param author string El nombre del autor del mensaje.
+---@param isShowAuthor any Si debe mostrarse el nombre del autor en el mensaje: Ejem: "[AbrahamPicos]: Este es el mensaje.".
+---@return table table Una tabla que simula ser un objeto ChatMessage.
+function aptweaks.createFakeChatMessage(size, text, author, isShowAuthor)
+    return {
+        modID = modID,
+        getTextWithPrefix = function(self)
+            local prefix = "<RGB:0.0,0.5,1.0> " .. "<SIZE:" .. size .. "> "
+            if isShowAuthor then
+                prefix = prefix .. "[" .. author .. "]: "
+            end
+            return prefix .. text
+        end,
+        isServerAlert = function(self) return false end,
+        getAuthor = function(self) return author end,
+        isShowAuthor = function(self) return isShowAuthor end,
+        getText = function(self) return text end,
+        setSize = function (self, newSize)
+            size = newSize
+        end
+    }
+end
+
 -- Procesa la respuesta de todos los comandos de APTweaks cuando son usados a travez de APTweaks.
 --- @param player table Un IsoPlayer.
 --- @param result table|nil La tabla con el resultado del comando.
---- @param message table|nil Un ChatMessage. Es el el caso de que la función se llame en el evento OnAddMessage.
-function aptweaks.ProcessCommandResult(player, result, message)
+function aptweaks.ProcessCommandResult(player, result)
 
     if result then
         local text = result.text
@@ -91,13 +141,7 @@ function aptweaks.ProcessCommandResult(player, result, message)
         end
 
         if text and client then
-
-            if message then
-                text = text:gsub("%[NL%]", "\n")
-                message:setText(text)
-            else
-                SendCommandToServer("/APTM-" .. sessionID .. " " .. text)
-            end
+            ISChat.addLineInChat(aptweaks.createFakeChatMessage(ISChat.instance.chatFont, text, "APTweaks", false), 0)
         end
     end
 end

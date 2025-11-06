@@ -39,6 +39,7 @@ local aptweaks_temp = {
 -- Crea el mapa de datos de APTweaks. También lo restablece si necesita limpiarlo.
 ---@param reset boolean Si el mapa debe restablecerse, lo que borrará todos los datos.
 local function SetupData(reset)
+    -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
     aptweaks_data = ModData.getOrCreate("aptweaks")
 
     if aptweaks_data == {} or reset then
@@ -366,7 +367,7 @@ local function OnClientCommand(module, command, player, args)
         end
 
         if result and player ~= nil then
-            ProcessCommandResult(player, result, nil)
+            ProcessCommandResult(player, result)
         end
     end
 end
