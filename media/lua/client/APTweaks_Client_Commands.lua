@@ -12,10 +12,9 @@ local aptweaks_data = aptweaks.aptweaks_data
 local APTweaksVars = aptweaks.APTweaksVars
 local player_flags = aptweaks.player_flags
 
-local format = aptweaks.format
-
 -- Almacena las definiciones temporales de pos1 y pos2, posiciones que representan los vertices que limitan el área de la
 --  safehouse. Se usan para el comando safezone define.
+-- Debo mover esto a APTweaks.lua. Así probablemente pueda recargar este archivo.
 local safehouse = {
     -- El vertice1, debe ser el de la esquina superior izquierda.
     pos1 = nil,
@@ -40,6 +39,8 @@ function commands.WarpComamand(player, args)
 
                 if player:getVehicle() == nil then
 
+                    -- Esto es inconsistente. Hay un bug que provoca que sea true infinitamente cuando bajas de un vehículo
+                    --  Con un arma de dos manos. Hace falta encontrar una forma de parcharlo, o usar mi porpio sistema.
                     if not player:isMoving() then
 
                         if not player_flags.inWarpCommand then
@@ -49,9 +50,9 @@ function commands.WarpComamand(player, args)
                                 player_flags.warpCommandWarp = warp
                                 player_flags.warpCommandCooldownSecondsLeft = APTweaksVars.TeleportCooldown
 
-                                return {text = format(getText("UI_APTweaks_TeleportBegins"), warp)}
+                                return {text = string.format(getText("UI_APTweaks_TeleportBegins"), warp)}
                             else
-                                return {text = format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft)}
+                                return {text = string.format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft)}
                             end
                         else
                             return {text = getText("UI_APTweaks_AlreadyExecuting")}
@@ -85,13 +86,13 @@ function commands.WarpComamand(player, args)
                         aviableWarps = aviableWarps .. getText("UI_APTweaks_WarpsList_Separator") .. tostring(existingWarp)
                     end
                 end
-                return {text = format(getText("UI_APTweaks_MissingWarp"), warp, aviableWarps)}
+                return {text = string.format(getText("UI_APTweaks_MissingWarp"), warp, aviableWarps)}
             end
         else
-            return {text = format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
+            return {text = string.format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
         end
     else
-        return {text = format(getText("UI_APTweaks_FewArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
+        return {text = string.format(getText("UI_APTweaks_FewArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
     end
 end
 
@@ -136,7 +137,7 @@ function commands.SafehouseCommand(player, args)
                     if x >= 0 and y >= 0 and x <= 19799 and y <= 15899 then
                         safehouse[command] = {x = x, y = y}
 
-                        return {text = format("Definida la posicion del vertice de area %s en %d,%d.", command, x, y)}
+                        return {text = string.format("Definida la posicion del vertice de area %s en %d,%d.", command, x, y)}
                     else
                         return {text = "No puede usar coordenadas fuera del mapa."}
                     end
@@ -149,8 +150,6 @@ function commands.SafehouseCommand(player, args)
                     removePos()
 
                     return {text = "Se han removido las definiciones de pos1 y pos2 de la memoria temporal."}
-                else
-                    return {text = "No tiene permitido usar ese comando."}
                 end
             elseif command == "define" then
 
@@ -179,8 +178,8 @@ function commands.SafehouseCommand(player, args)
                                         end
                                     end
                                 end
-                                data = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
                                 removePos()
+                                data = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
 
                                 return {text = "Espere un momento...", command = "safehouseDefineCommand", data = data}
                             else
@@ -192,15 +191,11 @@ function commands.SafehouseCommand(player, args)
                     else
                         return {text = "<RGB:1,0,0>Antes debe definir el area con <RGB:0,0,1><SPACE>pos1 <RGB:1,0,0><SPACE>y <RGB:0,0,1><SPACE>pos2."}
                     end
-                else
-                    return {text = "No tiene permitido usar ese comando."}
                 end
             elseif command == "prune" then
 
                 if hasPermission then
                     return {text = "Espere un momento...", command = "safezonePruneCommand", data = {}}
-                else
-                    return {text = "No tiene permitido usar ese comando."}
                 end
             else
                 return {text = "Uso incorrecto."}
@@ -211,6 +206,7 @@ function commands.SafehouseCommand(player, args)
     else
         return {text = "Faltan argumentos."}
     end
+    return {text = "No tiene permitido usar ese comando."}
 end
 
 return commands

@@ -2,64 +2,29 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
-local aptweaks, commands = require("APTweaks"), require("APTweaks_Client_Commands")
+local aptweaks = require("APTweaks")
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
 local player_flags = aptweaks.player_flags
 
-local format = aptweaks.format
 local SecondsElapsed = aptweaks.SecondsElapsed
 local ProcessCommandResult = aptweaks.ProcessCommandResult
-local WarpComamand = commands.WarpComamand
-local SafehouseCommand = commands.SafehouseCommand
 
 local Events = aptweaks.Events
 local ModData = aptweaks.ModData
 local getText = aptweaks.getText
 local getCore = aptweaks.getCore
+local isClient = aptweaks.isClient
+local getPlayer = aptweaks.getPlayer
 local SafeHouse = aptweaks.SafeHouse
 local sendClientCommand = aptweaks.sendClientCommand
 
-local ISChat = ISChat
-local isClient = isClient
-local getPlayer = getPlayer
-local doKeyPress = doKeyPress
-local stringStarts = luautils.stringStarts
-
-local old_onSwitchStream = ISChat.onSwitchStream
-local old_onCommandEntered = ISChat.onCommandEntered
-local old_addLineInChat = ISChat.addLineInChat
-local old_UpdateChatPrefixSettings = ISChat.updateChatPrefixSettings
-
 -- El mapa de datos de APTweaks. Se obtiene desde el servidor.
-local aptweaks_data
--- Almacena los mensajes personalizados del mod.
-local customMessages = {}
+-- Esto rompe el estilo.
+local aptweaks_data = nil
 -- Un contador experimental para probar si usar GameTime gettimedelta puede volver consistente el tiempo.
 local GenericTimeCounter = 0
-
--- Las definiciones de los comandos de APTweaks.
-local aptweaks_commands = {
-    {name = "aptweaks", command = "/aptweaks ", tabID = 1},
-    {name = "warp", command = "/warp ", tabID = 1},
-    {name = "safezone", command = "/safezone ", tabID = 1}}
-
--- Registrando los comandos de APTweaks en la clase ISChat.
--- Verifica si ya están para poder recargar el archivo.
-for i = 1, #aptweaks_commands do
-    local needed = false
-
-    for _, v in ipairs(ISChat.allChatStreams) do
-        if v == aptweaks_commands[i] then
-            needed = true
-        end
-    end
-
-    if needed then
-        table.insert(ISChat.allChatStreams, aptweaks_commands[i])
-    end
-end
 
 -- Rellena labla que almacena el mapa de datos de APTweaks.
 -- La tabla en la que se almacena la ModData localmente se encuentra en el módulo común APTweaks.lua. Esto permite que sea
@@ -90,205 +55,6 @@ local function OnReceiveGlobalModData(key, data)
     if key == "aptweaks" then
         syncData(data)
     end
-end
-
--- SOBRESCRIBIENDO UNA FUNCION VANILLA: AddLineInChat de la clase Lua ISChat.
--- Corrige el bug de líneas infinitas que hay en el código vanilla.
----@param message table Un objeto ChatMessage, o uno que simule serlo.
----@param tabID number La ID de la pestaña en la que se mostrará el mensaje. Tenga encuenta que la ID de la pestaña 1 es 0.
-ISChat.addLineInChat = function(message, tabID)
-
-    old_addLineInChat(message, tabID)
-
-    local chatText
-
-    for _, tab in ipairs(ISChat.instance.tabs) do
-        if tab and tab.tabID == tabID then
-            chatText = tab
-            break
-        end
-    end
-
-    if #chatText.chatMessages > ISChat.maxLine + 1 then
-        local newMessages = {}
-        for i, msg in ipairs(chatText.chatMessages) do
-            if i ~= 1 then
-                table.insert(newMessages, msg)
-            end
-        end
-        chatText.chatMessages = newMessages
-    end
-end
-
--- SOBRESCRIBIENDO UNA FUNCION VANILLA: updateChatPrefixSettings de la clase Lua ISChat.
-function ISChat:updateChatPrefixSettings()
-
-    -- Actualizar el tamaño de letra en nuestros mensajes falsos.
-    for _, tab in ipairs(self.tabs) do
-        for _, msg in ipairs(tab.chatMessages) do
-            if msg.modID == modID then
-                    msg:setSize(self.chatFont)
-            end
-        end
-    end
-    old_UpdateChatPrefixSettings(self)
-end
-
--- Procesa los comandos de APTweaks,
----@param command string El comando que se ejecutó.
----@param args string Una cadena de todos los argumentos que se usaron al ingresar el comando.
-local function ProcessAptweaksCommand(command, args)
-    local player = player_flags.player
-
-    if not player then return end
-
-    -- La tabla que almacena cada palabra incluida en la cadena args.
-    local words = {}
-
-    for arg in string.gmatch(args, "%S+") do
-        table.insert(words, arg)
-    end
-    local result = nil
-
-    -- El comando principal de aptweaks (experimental).
-    if command == "aptweaks" then
-
-        if #words <= 1 then
-
-            if #words == 1 then
-                local subcommand = words[1]
-
-                if subcommand == "cleardata" then
-                    result = {text = "Espere un momento", command = "clearData", data = {}}
-                end
-            else
-                result = {text = "Faltan argumentos. Use /aptweaks cleardata"}
-            end
-        else
-            result = {text = "Demasiados argumentos"}
-        end
-
-    -- El comando warp. 
-    elseif command == getText("UI_APTweaks_WarpCommand") and APTweaksVars.WarpSystemEnabled then
-        result = WarpComamand(player, words)
-
-    -- El comando safezone.
-    elseif command == "safezone" and APTweaksVars.SafehouseSystemEnabled then
-        result = SafehouseCommand(player, words)
-
-    -- El comando de pruebas.
-    elseif command == "something" then
-        result = {text = "Espere un momento...", command = "something", data = {}}
-    end
-    ProcessCommandResult(player, result)
-end
-
--- SOBRESCRIBIENDO UNA FUNCION VANILLA: onCommandEntered de la clase Lua IsChat.
--- Añade la lógica adicional necesaria para ejecutar los comandos de APTweaks.
--- NOTA: No retornamos después de procesar el comando APTweaks para permitir que otros mods también lo manejen.
-function ISChat:onCommandEntered()
-
-    -- Por alguna razón las cosas que necesito aquí no están en self.
-    local chat = ISChat.instance
-    -- Este es el texto que había en el cuadro de entrada de texto del chat al momento en el que se llamó a la función, tal cual 
-    --  como el usuario lo escribió. Tenga en cuenta que incluso el texto que se ingresó sin un "/" al inicio se interpreta como
-    --  un comando.
-    local textEntry = chat.textEntry:getText()
-
-    if textEntry and textEntry ~= "" then
-        local aptweaksCommand
-
-        for _, command in ipairs(aptweaks_commands) do
-
-            if chat.currentTabID == command.tabID then
-
-                -- stringStarts devuelve true si el primer string coincide con el segundo, pero sólo los compara hasta el tamaño
-                --   del segundo string. Es decir que por ejemplo: `stringStarts("holaquehace", "holaq")` será true.
-                if stringStarts(textEntry, command.command) then
-                    aptweaksCommand = command.command
-
-                -- Actualmente ningún comando de APTweaks tiene una versión corta, pero dejé esto por si acaso.
-                elseif command.shortCommand and stringStarts(textEntry, command.shortCommand) then
-                    aptweaksCommand = command.shortCommand
-                end
-
-                -- No se establece chat.chatText.lastChatCommand debido a que, -aunque funcionaría-, es mejor reservarlo sólo a
-                --  los comandos de chat, como el /say, /whisper, y /all.
-                -- No estoy seguro de qué hacen muchas cosas aquí, pero alguna previene que el chat recupere el foco al ejecutar
-                --  el comando.
-                if aptweaksCommand then
-                    -- Se limpia el campo de texto para evitar que vanilla lo procese otra vez.
-                    chat.textEntry:setText("")
-                    -- Se supone que esto registra la ejecución del comando en el log, pero no lo veo.
-                    chat:logChatCommand(textEntry)
-                    ProcessAptweaksCommand(command.name, string.sub(textEntry, #aptweaksCommand))
-                    -- Evita que el cliente pueda volver a usar la entrada de texto del chat.
-                    doKeyPress(false)
-                    -- El tiempo en ticks que debe pasar hasta que que doKeyPress se restablezca a true.
-                    chat.timerTextEntry = 20
-                    break
-                end
-            end
-        end
-    end
-
-    -- Evita errores potencialmente castatróficos causados por otros mods.
-    if old_onCommandEntered then
-        local success, err = pcall(old_onCommandEntered, self)
-        if not success then
-            print("APTweaks: Error al ejecutar función heredada de onCommandEntered: " .. tostring(err))
-        end
-    end
-end
-
--- SOBRESCRIBIENDO UNA FUNCION VANILLA: onSwitchStream de la clase Lua ISChat.
--- Añade a la primitiva tabcomplete del juego los comandos de APTweaks, al mismo tiempo que mantiene la compatibilidad con otros
---  mods.
-ISChat.onSwitchStream = function ()
-    local curTxtPanel = ISChat.instance.chatText
-    -- Si los otros mods respetan el órden de ejecución, todos tendrían que tener la oportunidad de almacenar el streamID anterior.
-    local previousStreamIndex = curTxtPanel.streamID
-
-    if old_onSwitchStream then
-        local success, err = pcall(old_onSwitchStream)
-        if not success then
-            print("APTweaks: Error al ejecutar función heredada de onSwitchStream: " .. tostring(err))
-        end
-    end
-
-    local allChatStreams = curTxtPanel.chatStreams
-    -- Este es ahora el índice actual en lugar del anterior, porque la función heredada acaba de cambiarlo.
-    local actualStreamIndex = curTxtPanel.streamID
-
-    -- Si el índice actual no es igual al índice anterior +1. Esto significa que la función heredada ignoró uno o más índices. Esto
-    --  puede ocurrir porque el cliente no debería verlos, -como cuando no tiene permisos suficientes-, o porque no pueden ser
-    --  comprobados por el método checkPlayerCanUseChat. Esto último ocurre con todos los comandos de mods.
-    -- Si la función heredada es de un mod bien programado, ignoró lo índices porque no eran suyos.
-    if actualStreamIndex ~= previousStreamIndex + 1 then
-        -- La función vanilla regresa al índice 1 cuando ha recorrido todos los streams.
-        -- Esta variable determina la cantidad máxima de índices que se evaluarán. Si la función vanilla regresó al primer índice,
-        --  se evaluará desde el índice actual (previousStreamIndex + 1) hasta el índice final (#allChatStreams), hasta encontrar
-        --  el siguiente comando de APTweaks. De lo contrarío, sólo evaluará los índices desde el índice anterior, hasta el actual.
-        --- (i = previousStreamIndex + 1, actualStreamIndex - 1).
-        local maxIndex = (actualStreamIndex == 1 and #allChatStreams or actualStreamIndex - 1)
-        local isAptweaksCommand = false
-
-        for i = previousStreamIndex + 1, maxIndex do
-
-            -- Es posible optimizar esto si convierto aptweaks_commands en un mapa.
-            for j = 1, #aptweaks_commands do
-
-                if allChatStreams[i] and allChatStreams[i].command == aptweaks_commands[j].command then
-                    isAptweaksCommand = true
-                    ISChat.instance.textEntry:setText(aptweaks_commands[j].command)
-                    curTxtPanel.streamID = i
-                    break
-                end
-            end
-            if isAptweaksCommand then break end
-        end
-    end
-    previousStreamIndex = curTxtPanel.streamID
 end
 
 -- Restaura las banderas del jugador a sus valores por defecto para su posterior reutilización.
@@ -329,8 +95,8 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
                 end
             end
 
-            if player_flags.InTeleport then
-                player_flags.InTeleport = false
+            if player_flags.inTeleport then
+                player_flags.inTeleport = false
             end
 
             if player_flags.warpCommandWarp ~= nil then
@@ -338,7 +104,7 @@ local function RestorePlayerFlags(allFlags, cooldownFlags, value)
             end
             player_flags.inWarpCommand = false
         end
-        player_flags.lastLocation = value
+        player_flags.lastX, player_flags.lastY, player_flags.lastZ = value.x, value.y, value.z
 
     else
 
@@ -356,7 +122,7 @@ end
 local function OnServerCommand(module, command, args)
     local player = player_flags.player
 
-    if not (player and module == modID) then return end
+    if not (player ~= nil and module == modID) then return end
 
     local result = nil
     local data = nil
@@ -369,7 +135,7 @@ local function OnServerCommand(module, command, args)
         local safezone = SafeHouse.addSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1, username, false)
 
         if safezone ~= nil then
-            safezone:setTitle(format("refugio de %s", username))
+            safezone:setTitle(string.format("refugio de %s", username))
             -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usando los métodos
             --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
             safezone:setOwner(username)
@@ -387,9 +153,9 @@ local function OnServerCommand(module, command, args)
     elseif command == "teleportPlayer" then
         local x, y ,z = args.x, args.y, args.z
 
-        -- Hace falta sobreescribir también la última localización, o voverá ahí luego de la teletransportación.
+        -- Hace falta sobreescribir también la última localización, o volverá ahí luego de la teletransportación.
         player:setX(x); player:setY(y); player:setZ(z); player:setLx(x); player:setLy(y); player:setLz(z)
-        player:setHaloNote(format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
+        player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
         -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
         --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
         -- Aún así las banderas deben limpiarse ahora para asegurarse de que el comando esté disponble
@@ -404,7 +170,7 @@ local function OnServerCommand(module, command, args)
     ProcessCommandResult(player, result)
 end
 
--- En el evento OnTick. Verifica constantemente la localización del cliente, de tenerla, y redefine las variables en su
+-- En el evento OnTick. Verifica constantemente la localización del cliente, -de tenerla-, y redefine las variables en su
 --- tabla de banderas según la lógica que procesa.
 ---@param tick number
 local function OnTick(tick)
@@ -433,16 +199,16 @@ local function OnTick(tick)
         -- Dentro de este bloque se procesan el teleport delay y el teleport cooldown. También se solicita la teletransportación.
         if warpSystemEnabled then
 
-            if player_flags.warpCommandTickStart ~= nil and player_flags.InTeleport == false then
+            if player_flags.warpCommandTickStart ~= nil and player_flags.inTeleport == false then
                 local secondsElapsed, isWholeSecond = SecondsElapsed(tick, player_flags.warpCommandTickStart)
 
                 if isWholeSecond then
 
                     if player_flags.inWarpCommand then
-                        player:setHaloNote(format(getText("UI_APTweaks_TeleportDelaying"), math.abs(secondsElapsed - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
+                        player:setHaloNote(string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(secondsElapsed - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
 
                         if secondsElapsed == APTweaksVars.TeleportDelay then
-                            player_flags.InTeleport = true
+                            player_flags.inTeleport = true
                             sendClientCommand(player, modID, "teleportNeeded", {warp = player_flags.warpCommandWarp})
                         end
                     else
@@ -457,7 +223,7 @@ local function OnTick(tick)
         end
 
         -- Si el jugador se movió.
-        if playerX ~= player_flags.lastLocation.x or playerY ~= player_flags.lastLocation.y or playerZ ~= player_flags.lastLocation.z then
+        if playerX ~= player_flags.lastX or playerY ~= player_flags.lastY or playerZ ~= player_flags.lastZ then
             RestorePlayerFlags(true, true, {x = playerX, y = playerY, z = playerZ})
 
         -- Si el jugador no se ha movido.
