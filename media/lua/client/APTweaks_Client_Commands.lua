@@ -34,26 +34,20 @@ function commands.WarpComamand(player, args)
         if #args == 1 then
             -- El warp que el cliente ingresó, tal cual como lo escribió.
             local warp = args[1]
+            local location = aptweaks_data.warps[warp]
 
-            if aptweaks_data.warps[warp] then
+            if location then
 
                 if player:getVehicle() == nil then
 
-                    -- Esto es inconsistente. Hay un bug que provoca que sea true infinitamente cuando bajas de un vehículo
-                    --  Con un arma de dos manos. Hace falta encontrar una forma de parcharlo, o usar mi porpio sistema.
-                    if not player:isMoving() then
+                    if not player_flags.isMoving then
 
-                        if not player_flags.inWarpCommand then
+                        if not player_flags.inTeleport then
+                            player_flags.isTeleporting = true
+                            player_flags.teleportLocation = {x= location.x, y = location.y, z = location.z, name = warp}
 
-                            if player_flags.warpCommandTickStart == nil then
-                                player_flags.inWarpCommand = true
-                                player_flags.warpCommandWarp = warp
-                                player_flags.warpCommandCooldownSecondsLeft = APTweaksVars.TeleportCooldown
-
-                                return {text = string.format(getText("UI_APTweaks_TeleportBegins"), warp)}
-                            else
-                                return {text = string.format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft)}
-                            end
+                            return {text = string.format(getText("UI_APTweaks_TeleportBegins"), warp)}
+                            --return {text = string.format(getText("UI_APTweaks_TeleportCooldown"), player_flags.warpCommandCooldownSecondsLeft)}
                         else
                             return {text = getText("UI_APTweaks_AlreadyExecuting")}
                         end
@@ -126,7 +120,7 @@ function commands.SafehouseCommand(player, args)
 
                     data = {cellID = cellID, x = x, y = y}
 
-                    return {text = "Espere un momento...", uncliam = unclaim, command = command .. "Command", data = data}
+                    return {uncliam = unclaim, command = command .. "Command", data = data}
                 else
                     return {text = "No tiene permitido usar ese comando."}
                 end
@@ -181,7 +175,7 @@ function commands.SafehouseCommand(player, args)
                                 removePos()
                                 data = {areaID = areaID, area = {x1 = x1, y1 = y1, x2 = x2, y2 = y2}, cells = cells}
 
-                                return {text = "Espere un momento...", command = "safehouseDefineCommand", data = data}
+                                return {command = "safehouseDefineCommand", data = data}
                             else
                                 return {text = "El area no puede ser mayor o igual a 300 tiles."}
                             end
@@ -195,7 +189,7 @@ function commands.SafehouseCommand(player, args)
             elseif command == "prune" then
 
                 if hasPermission then
-                    return {text = "Espere un momento...", command = "safezonePruneCommand", data = {}}
+                    return {command = "safezonePruneCommand", data = {}}
                 end
             else
                 return {text = "Uso incorrecto."}

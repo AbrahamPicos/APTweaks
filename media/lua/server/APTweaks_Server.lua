@@ -118,20 +118,15 @@ local function SafezoneClaimCommand(player, args) -- args = {cellID = cellID, x 
                 if not isBlocked then
 
                     if not IsSafeHouse(x1, y1, x2, y2) then
+                        aptweaks_temp.blocked[player:getUsername()] = areaID
 
-                        if not alreadyHaveSafehouse(player) then
-                            aptweaks_temp.blocked[player:getUsername()] = areaID
-
-                            data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}
-                            result = {command = "createSafehouse", data = data}
-                        else
-                            result = {text = "Ya tienes o eres miembro de un refugio."}
-                        end
+                        data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}
+                        result = {command = "createSafehouse", data = data}
                     else
                         result = {text = "El area ya esta reclamada."}
                     end
                 else
-                    result = {text = "Intente mas tarde."}
+                    result = {text = "Alguien más está intentando reclamar esa área. Intente mas tarde."}
                 end
                 break
             end
@@ -321,21 +316,12 @@ local function OnClientCommand(module, command, player, args)
             elseif command == "safehouseDefineCommand" then
                 result = SafezoneDefineCommand(args)
 
-            -- Cuando el cliente confirma que terminó de procesar el comando "createSafehouse" enviado por el servidor.
-            elseif command == "claimCommandSucess" then
-
-                -- Si el cliente dijo que no pudo crear la safehouse, lo que es un fallo, elimina el bloqueo del área. Si es
-                --- creada exitosamente, no hace nada para siguir rastreando el área hasta confirmar su existencia.
-                if not args.sucess then
-                    aptweaks_temp.blocked[args.blocked] = nil
-                end
-
             -- Cuando el cliente ejecutó el comando `/aptweaks cleardata`.
             elseif command == "clearData" then
                 SetupData(true)
 
             -- Cuando el cliente indicó que necesita teletransportarse.
-            elseif command == "teleportNeeded" then -- args = {warp = warpString}
+            elseif command == "teleportNeeded" then -- args = {x = x, y = y, z = z, name = name}
                 local addPlayer = false
 
                 if serverOptions:getBoolean("AntiCheatProtectionType2") then
@@ -346,10 +332,8 @@ local function OnClientCommand(module, command, player, args)
                 if addPlayer or aptweaks_data.inTeleport ~= {} then
                     aptweaks_data.inTeleport[player:getUsername()] = -1
                 end
-                local location = aptweaks_data.warps[args.warp]
 
-                data = {x = location.x, y = location.y, z = location.z}
-                result = {command = "teleportPlayer", data = data}
+                result = {command = "teleportPlayer", data = args}
 
             elseif command == "teleportSuccess" then -- args = {}
 

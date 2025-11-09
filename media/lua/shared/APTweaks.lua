@@ -4,23 +4,6 @@
 
 -- Este archivo actua como un contenedor de datos. No lo recargue.
 
---[[
-player_flags = {
-    player = IsoPlayer | nil, -- El jugador asociado al cliente.
-    inTeleport = boolean, -- Si el jugador ha enviado al servidor una solicitud de teletransporte.
-    lastLoation = { -- La última localización del jugador.
-        x = number | nil,
-        y = number | nil,
-        z = number | nil
-    },
-    iddleTickStart = number | nil, -- El tick a partir del cual el jugador ha estado quieto.
-    isAfk = boolean, -- Si el jugador está AFK.
-    inWarpCommand = boolean, -- Si el jugador está ejecutando el comando warp.
-    warpCommandWarp = string | nil, -- El warp al que el jugador se teletransportará.
-    warpCommandTickStart = number | nil, -- El tick cuando inició el comando warp.
-    warpCommandCooldownSecondsLeft = number | nil -- Los segundos que faltan para que el jugador pueda teletransportarse otra vez.
-}]]
-
 local aptweaks = {}
     -- La ID del mod.
     aptweaks.modID = "com.github.abrahampicos.aptweaks"
@@ -59,6 +42,7 @@ local aptweaks = {}
 
     aptweaks.luautils = luautils
     aptweaks.APTweaksVars = SandboxVars.APTweaks
+    aptweaks.GameTimeInstance = GameTime.getInstance()
 
 local isClient = aptweaks.isClient
 local isServer = aptweaks.isServer
@@ -134,21 +118,3 @@ function aptweaks.ProcessCommandResult(player, result)
         end
     end
 end
-
--- Usa el tick actual para determinar cuántos segundos han pasado, y si son segundos enteros.
---- @param tick number El tick actual.
---- @param value number El tick que se usará para obtener la diferencia de tiempo.
---- @return number secondsElapsed El segundo obtenido en el tick actual.
---- @return boolean isWoleSecond Si el segundo obtenido es un segundo completo.
-function aptweaks.SecondsElapsed(tick, value)
-    local ticksElapsed = tick - value
-    local secondsElapsed = ticksElapsed / 60
-    local isWholeSecond = false
-
-    if ticksElapsed % 60 == 0 then
-        isWholeSecond = true
-    end
-    return secondsElapsed, isWholeSecond
-end
-
-return aptweaks

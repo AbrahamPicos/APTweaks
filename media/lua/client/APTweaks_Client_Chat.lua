@@ -2,11 +2,12 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
--- Este archivo sobrescribe múltipes funciones del juego base. No lo recargue.
+-- Este archivo sobrescribe múltipes funciones del juego base. No lo recargue si hay otros mods.
 
 local aptweaks, commands = require("APTweaks"), require("APTweaks_Client_Commands")
 
-aptweaks.ISChat = ISChat
+-- El módulo APTweaks.lua está en "shared", donde no está disponible ISChat.
+aptweaks.ISChat = aptweaks.ISChat or ISChat
 
 local modID = aptweaks.modID
 local player_flags = aptweaks.player_flags
@@ -19,10 +20,15 @@ local getText = aptweaks.getText
 local ISChat = aptweaks.ISChat
 local doKeyPress = aptweaks.doKeyPress
 
-local old_onSwitchStream = ISChat.onSwitchStream
-local old_onCommandEntered = ISChat.onCommandEntered
-local old_addLineInChat = ISChat.addLineInChat
-local old_UpdateChatPrefixSettings = ISChat.updateChatPrefixSettings
+aptweaks.old_onSwitchStream = aptweaks.old_onSwitchStream or ISChat.onSwitchStream
+aptweaks.old_onCommandEntered = aptweaks.old_onCommandEntered or ISChat.onCommandEntered
+aptweaks.old_addLineInChat = aptweaks.old_addLineInChat or ISChat.addLineInChat
+aptweaks.old_updateChatPrefixSettings = aptweaks.old_updateChatPrefixSettings or ISChat.updateChatPrefixSettings
+
+local old_onSwitchStream = aptweaks.old_onSwitchStream
+local old_onCommandEntered = aptweaks.old_onCommandEntered
+local old_addLineInChat = aptweaks.old_addLineInChat
+local old_updateChatPrefixSettings = aptweaks.old_updateChatPrefixSettings
 
 local luautils = aptweaks.luautils
 local APTweaksVars = aptweaks.APTweaksVars
@@ -142,7 +148,7 @@ function ISChat:updateChatPrefixSettings()
             end
         end
     end
-    old_UpdateChatPrefixSettings(self)
+    old_updateChatPrefixSettings(self)
 end
 
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: onCommandEntered de la clase Lua ISChat.
@@ -236,4 +242,5 @@ ISChat.onSwitchStream = function ()
     end
 end
 
-print("[APTweaksDebug] APTweaks_Client_Chat.lua is loaded.")
+-- Aún debo hacer que onCommandEntered ignore los comandos que están deshabilitados en la onfiguración, y que tanto los comandos
+--- de sistemas deshabilitados, como los que no debería ver por permissos, sean ignorados en onSwitchStream.

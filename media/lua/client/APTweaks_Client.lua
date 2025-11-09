@@ -6,9 +6,9 @@ local aptweaks = require("APTweaks")
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
+local GameTimeInstance = aptweaks.GameTimeInstance
 local player_flags = aptweaks.player_flags
 
-local SecondsElapsed = aptweaks.SecondsElapsed
 local ProcessCommandResult = aptweaks.ProcessCommandResult
 
 local Events = aptweaks.Events
@@ -19,12 +19,23 @@ local isClient = aptweaks.isClient
 local getPlayer = aptweaks.getPlayer
 local SafeHouse = aptweaks.SafeHouse
 local sendClientCommand = aptweaks.sendClientCommand
+local alreadyHaveSafehouse = aptweaks.alreadyHaveSafehouse
 
 -- El mapa de datos de APTweaks. Se obtiene desde el servidor.
 -- Esto rompe el estilo.
-local aptweaks_data = nil
--- Un contador experimental para probar si usar GameTime gettimedelta puede volver consistente el tiempo.
-local GenericTimeCounter = 0
+local aptweaks_data
+-- Suma el tiemp que se ha pasado AFK hasta alcanzar un segundo.
+local afkTimer = 0
+-- El número de segundos que que se ha estado AFK.
+local afkSeconds = 0
+-- Suma el tiempo desde que se solicitó una teletransportación hasta alcanzar un segundo.
+local teleportTimer = 0
+-- El número de segundos que han pasado desde que se solicitó una teletransportación.
+local teleportSeconds = 0
+
+local function OnGameStart()
+    player_flags.player = getPlayer()
+end
 
 -- Rellena labla que almacena el mapa de datos de APTweaks.
 -- La tabla en la que se almacena la ModData localmente se encuentra en el módulo común APTweaks.lua. Esto permite que sea
@@ -57,110 +68,43 @@ local function OnReceiveGlobalModData(key, data)
     end
 end
 
--- Restaura las banderas del jugador a sus valores por defecto para su posterior reutilización.
----@param allFlags boolean Si debe hacerse un hard restore, lo que borrará todas las banderas.
----@param cooldownFlags boolean Si deberían borrarse las banderas de cooldown, independientemente de todas las demás.
----@param value (table|nil) El valor que la bandera lastLocation tendrá. Puede ignorarse completamente si allFlags es false.
-local function RestorePlayerFlags(allFlags, cooldownFlags, value)
-    local player = player_flags.player
-
-    -- Restaura las banderas referentes al teleport cooldown.
-    local function RestoreCooldownFlags()
-        player_flags.warpCommandTickStart = nil
-        player_flags.warpCommandCooldownSecondsLeft = nil
-    end
-
-    if allFlags then
-        value = value or {x = nil, y = nil, z = nil}
-
-        if player_flags.iddleTickStart ~= nil then
-
-            if player_flags.isAfk == true then
-                player_flags.isAfk = false
-
-                if player ~= nil then
-                    player:setHaloNote(getText("UI_APTweaks_AfkRemoved"), 0, 255, 0, 500)
-                end
-            end
-            player_flags.iddleTickStart = nil
-        end
-
-        if player_flags.inWarpCommand then
-
-            if cooldownFlags then
-                RestoreCooldownFlags()
-
-                if player ~= nil then
-                    player:setHaloNote(getText("UI_APTweaks_TeleportCancelled"), 255, 0, 0, 500)
-                end
-            end
-
-            if player_flags.inTeleport then
-                player_flags.inTeleport = false
-            end
-
-            if player_flags.warpCommandWarp ~= nil then
-                player_flags.warpCommandWarp = nil
-            end
-            player_flags.inWarpCommand = false
-        end
-        player_flags.lastX, player_flags.lastY, player_flags.lastZ = value.x, value.y, value.z
-
-    else
-
-        if cooldownFlags then
-            RestoreCooldownFlags()
-        end
-    end
-end
-
 -- En el evento OnServerCommand. Procesa los comandos enviados desde el servidor al cliente, los que tienen que ver con APTweaks.
---- Incluye el servicio de mensajería interno y la reclamación de safehouses.
+--- Incluye la teletransportación, y la reclamación de safehouses.
 ---@param module string Suele usarse la ID del mod. Sirve para diferenciar entre comandos enviados por otros mods.
 ---@param command string El comando en sí, es como el "asunto" en un correo electrónico.
 ---@param args table Los argumentos del comando. Es una tabla que puede contener cualquier cosa.
 local function OnServerCommand(module, command, args)
     local player = player_flags.player
 
-    if not (player ~= nil and module == modID) then return end
+    if not (player and module == modID) then return end
 
-    local result = nil
-    local data = nil
+    local result
 
     if command == "createSafehouse" then
         local username = player:getUsername()
-        local sucess = false
-        local text = nil
         local x1, y1, x2, y2 = args.x1, args.y1, args.x2, args.y2
-        local safezone = SafeHouse.addSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1, username, false)
 
-        if safezone ~= nil then
+        if not alreadyHaveSafehouse(player) then
+            local safezone = SafeHouse.addSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1, username, false)
+
+            -- No estoy seguro del porqué deben usarse estos métodos.
             safezone:setTitle(string.format("refugio de %s", username))
-            -- Crear safehouses con el método anterior trae un par de problemas, que espero se solucionen usando los métodos
-            --  siguientes. Tendrían que hacerlo, ya que son los que usa el código base del juego, y funciona bien ahí.
             safezone:setOwner(username)
             safezone:updateSafehouse(player)
             safezone:syncSafehouse()
 
-            text = "Safehouse creada exitosamente."
-            sucess = true
+            result = {text = "Safehouse creada exitosamente."}
+            -- Por seguridad, el desbloqueo de areas se maneja completamente del lado del servidor.
         else
-            text = "Ocurrio un error desconocido al crear la safehouse."
+            result = {text = "Ya tienes o eres miembro de un refugio."}
         end
-        data = {sucess = sucess, areaID = args.areaID, blocked = username}
-        result = {text = text, command = "claimCommandSucess", data = data}
 
     elseif command == "teleportPlayer" then
-        local x, y ,z = args.x, args.y, args.z
+        local x, y, z = args.x, args.y, args.z
 
-        -- Hace falta sobreescribir también la última localización, o volverá ahí luego de la teletransportación.
         player:setX(x); player:setY(y); player:setZ(z); player:setLx(x); player:setLy(y); player:setLz(z)
-        player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), player_flags.warpCommandWarp), 0, 255, 0, 500)
-        -- Debido a que el juego hará un ajuste en la localización del jugador al final de cualquier forma, lo
-        --  que llamará de nuevo a RestorePlayerFlags, puede ignorarla aquí.
-        -- Aún así las banderas deben limpiarse ahora para asegurarse de que el comando esté disponble
-        --  inmediatamente al siguente tick. Es una medida de escape.
-        RestorePlayerFlags(true, false, nil)
+        player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), args.name), 0, 255, 0, 500)
+        player_flags.isTeleporting = nil
 
         result = {command = "teleportSuccess", data = {}}
 
@@ -170,103 +114,100 @@ local function OnServerCommand(module, command, args)
     ProcessCommandResult(player, result)
 end
 
--- En el evento OnTick. Verifica constantemente la localización del cliente, -de tenerla-, y redefine las variables en su
---- tabla de banderas según la lógica que procesa.
----@param tick number
-local function OnTick(tick)
-    local warpSystemEnabled, afkSystemEnabled = APTweaksVars.WarpSystemEnabled, APTweaksVars.AfkSystemEnable
+local function updateAfkStatus(player, deltaTime)
 
-    if not isClient() and (warpSystemEnabled or afkSystemEnabled) then return end
+    if not APTweaksVars.AfkSystemEnable then return end
 
-    local player = getPlayer()
-    local playerX, playerY, playerZ = player:getX(), player:getY(), player:getZ()
+    if not player_flags.isMoving then
+        afkTimer = afkTimer + deltaTime
 
-    player_flags.player = player
-
-    -- Si el jugador existe y tiene coordenadas.
-    if player ~= nil and playerX ~= nil and playerY ~= nil and playerZ ~= nil then
-
-        -- El evento OnAddMessage no puede saber cuál es el tick actual, ya que no hay un método para eso en la clase GameTime.
-        --  En cambio, usa usa esta variable para indicar a este evento que tiene que registrarlo.
-        if player_flags.inWarpCommand then
-
-            if player_flags.warpCommandTickStart == nil then
-                player_flags.warpCommandTickStart = tick
+        if afkTimer >= 1 or (afkTimer == deltaTime and afkSeconds == 0) then
+            if afkTimer >= 1 then
+                afkTimer = afkTimer - 1
+                afkSeconds = afkSeconds + 1
             end
-        end
 
-        -- Si el sistema de warps está habilitado.
-        -- Dentro de este bloque se procesan el teleport delay y el teleport cooldown. También se solicita la teletransportación.
-        if warpSystemEnabled then
-
-            if player_flags.warpCommandTickStart ~= nil and player_flags.inTeleport == false then
-                local secondsElapsed, isWholeSecond = SecondsElapsed(tick, player_flags.warpCommandTickStart)
-
-                if isWholeSecond then
-
-                    if player_flags.inWarpCommand then
-                        player:setHaloNote(string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(secondsElapsed - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
-
-                        if secondsElapsed == APTweaksVars.TeleportDelay then
-                            player_flags.inTeleport = true
-                            sendClientCommand(player, modID, "teleportNeeded", {warp = player_flags.warpCommandWarp})
-                        end
-                    else
-                        player_flags.warpCommandCooldownSecondsLeft = math.abs(secondsElapsed - (APTweaksVars.TeleportDelay + APTweaksVars.TeleportCooldown))
-
-                        if secondsElapsed == APTweaksVars.TeleportDelay + APTweaksVars.TeleportCooldown then
-                            RestorePlayerFlags(false, true, nil)
-                        end
-                    end
+            if afkSeconds >= APTweaksVars.AfkStart then
+                if player then
+                    player:setHaloNote(getText("UI_APTweaks_Afk"), 255, 0, 0, 500)
                 end
-            end
-        end
 
-        -- Si el jugador se movió.
-        if playerX ~= player_flags.lastX or playerY ~= player_flags.lastY or playerZ ~= player_flags.lastZ then
-            RestorePlayerFlags(true, true, {x = playerX, y = playerY, z = playerZ})
-
-        -- Si el jugador no se ha movido.
-        else
-            -- Si el sistema Anti-AFK está habilitado.
-            -- Aquí se cuenta el tiempo AFK, y se procesa la desconexión por AFK.
-            if afkSystemEnabled then
-
-                if player_flags.iddleTickStart == nil then
-                    player_flags.iddleTickStart = tick
-                end
-                local secondsElapsed, isWholeSecond = SecondsElapsed(tick, player_flags.iddleTickStart)
-
-                if isWholeSecond then
-
-                    if secondsElapsed >= APTweaksVars.AfkStart then
-
-                        if secondsElapsed == APTweaksVars.AfkStart then
-                            player_flags.isAfk = true
-                        end
-
-                        if player_flags.isAfk then
-                            player:setHaloNote(getText("UI_APTweaks_Afk"), 255, 0, 0, 500)
-
-                            if secondsElapsed == APTweaksVars.AfkStart + APTweaksVars.AfkKick then
-                                getCore():exitToMenu()
-                            end
-                        end
-                    end
+                if afkSeconds == APTweaksVars.AfkStart + APTweaksVars.AfkKick then
+                    getCore():exitToMenu()
                 end
             end
         end
     else
-        print("El jugador se acaba de morir o no tiene coordenadas.")
-        -- Evita que el teletransporte ocurra si el jugador asociado al cliente muere o el cliente sale del servidor.
-        -- Aunque esto nunca se disparó durante las pruebas, está aquí como medida de escape.
-        RestorePlayerFlags(true, false, nil)
+        if player and afkSeconds >= APTweaksVars.AfkStart then
+            player:setHaloNote(getText("UI_APTweaks_AfkRemoved"), 0, 255, 0, 500)
+        end
+        afkTimer, afkSeconds = 0, 0
     end
+end
+
+local function updateTeleportStatus(player, deltaTime)
+
+    if not APTweaksVars.WarpSystemEnabled then return end
+
+    if not player_flags.isMoving and player_flags.isTeleporting then
+        teleportTimer = teleportTimer + deltaTime
+
+        if teleportTimer >= 1 or (teleportTimer == deltaTime and teleportSeconds == 0) then
+            if teleportTimer >= 1 then
+                teleportTimer = teleportTimer - 1
+                teleportSeconds = teleportSeconds + 1
+            end
+
+            if teleportSeconds <= APTweaksVars.TeleportDelay then
+                player:setHaloNote(
+                    string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(teleportSeconds - APTweaksVars.TeleportDelay)),
+                    0, 255, 0, 500)
+
+                if teleportSeconds == APTweaksVars.TeleportDelay then
+                    sendClientCommand(player, modID, "teleportNeeded", player_flags.teleportLocation)
+                    -- El teleportDelay se maneja del lado del servidor.
+                end
+            end
+        end
+    else
+        if player and (teleportTimer ~= 0 or teleportSeconds ~= 0) then
+            player:setHaloNote(getText("UI_APTweaks_TeleportCancelled"), 255, 0, 0, 500)
+        end
+        player_flags.isTeleporting = nil
+        teleportTimer, teleportSeconds = 0, 0
+    end
+end
+
+-- En el evento OnTickEvenPaused.
+-- Nota: En este juego la tasa de ticks es igual a los FPS.
+---@param tick number
+local function OnTickEvenPaused(tick)
+    local deltaTime = GameTimeInstance:getTimeDelta()
+    local player = player_flags.player
+
+    if not isClient() then return end
+
+    -- Es false si entra al servidor sin haber creado un personaje en la sesión previa.
+    -- Los personajes muertos pueden seguir moviéndose, pero ya no son controlados por el jugador.
+    if player and player:isAlive() then
+        local x, y, z =  player:getX(), player:getY(), player:getZ()
+
+        -- Hago esto porque IsoPlayer.isMoving es inconsistente.
+        player_flags.isMoving = player_flags.lastX ~= x or player_flags.lastY ~= y or player_flags.lastZ ~= z
+
+        if player_flags.isMoving then
+            player_flags.lastX, player_flags.lastY, player_flags.lastZ = x, y, z
+        end
+    else
+        player_flags.isMoving = nil
+    end
+
+    updateAfkStatus(player, deltaTime)
+    updateTeleportStatus(player, deltaTime)
 end
 
 Events.OnInitGlobalModData.Add(OnInitGlobalModData)
 Events.OnReceiveGlobalModData.Add(OnReceiveGlobalModData)
-Events.OnTick.Add(OnTick)
+Events.OnGameStart.Add(OnGameStart)
+Events.OnTickEvenPaused.Add(OnTickEvenPaused)
 Events.OnServerCommand.Add(OnServerCommand)
-
-print("[APTweaksDebug] APTweaks_Client.lua is loaded.")
