@@ -1,8 +1,8 @@
 Sandbox_ES = {
 	Sandbox_APTweaks = "APTweaks",
 
-	Sandbox_APTweaks_WarpSystemEnabled = "Warp system",
-	Sandbox_APTweaks_WarpSystemEnabled_tooltip = "Whether the APTweaks warp system will be used.",
+	Sandbox_APTweaks_TeleportSystemEnabled = "Teleport system",
+	Sandbox_APTweaks_TeleportSystemEnabled_tooltip = "Whether the APTweaks Teleport system will be used.",
 
 	Sandbox_APTweaks_AfkSystemEnabled = "AFK system",
 	Sandbox_APTweaks_AfkSystemEnabled_tooltip = "Whether APTweaks' anti-AFK system will be used.",

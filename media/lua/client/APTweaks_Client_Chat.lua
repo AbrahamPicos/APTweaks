@@ -12,12 +12,16 @@ aptweaks.ISChat = aptweaks.ISChat or ISChat
 local modID = aptweaks.modID
 local player_flags = aptweaks.player_flags
 
-local WarpComamand = commands.WarpComamand
-local SafehouseCommand = commands.SafehouseCommand
+local APTweaksCommand = commands.APTweaksCommand
+local WarpCommand = commands.WarpCommand
+local WarpsCommand = commands.WarpsCommand
+local ClaimCommand = commands.ClaimCommand
 local ProcessCommandResult = aptweaks.ProcessCommandResult
 
 local getText = aptweaks.getText
 local ISChat = aptweaks.ISChat
+local isAdmin = aptweaks.isAdmin
+local isCoopHost = aptweaks.isCoopHost
 local doKeyPress = aptweaks.doKeyPress
 
 aptweaks.old_onSwitchStream = aptweaks.old_onSwitchStream or ISChat.onSwitchStream
@@ -37,71 +41,60 @@ local APTweaksVars = aptweaks.APTweaksVars
 local aptweaks_commands = {
     {name = "aptweaks", command = "/aptweaks ", tabID = 1},
     {name = "warp", command = "/warp ", tabID = 1},
-    {name = "safezone", command = "/safezone ", tabID = 1}}
+    {name = "warps", command = "/warps ", tabID = 1},
+    {name = "claim", command = "/claim ", tabID = 1},
+    {name = "something", command = "/something ", tabID = 1}}
 
 -- Registrando los comandos de APTweaks en la clase Lua ISChat.
 for i = 1, #aptweaks_commands do
-    local needed = false
+    local isNeeded = true
 
     for _, v in ipairs(ISChat.allChatStreams) do
 
         if v == aptweaks_commands[i] then
-            needed = true
+            isNeeded = false
         end
     end
 
-    if needed then
+    if isNeeded then
         table.insert(ISChat.allChatStreams, aptweaks_commands[i])
     end
 end
 
 -- Procesa los comandos de APTweaks.
 ---@param command string El comando que se ejecutó.
----@param args string Una cadena de todos los argumentos que se usaron al ingresar el comando.
-local function ProcessAPTweaksCommand(command, args)
-    local player = player_flags.player
+---@param argsString string Una cadena de todos los argumentos que se usaron al ingresar el comando.
+---@return boolean handled Si el comando fue menejado completamente por APTweaks.
+local function ProcessAPTweaksCommand(player, command, argsString)
+    local args = {}
+    local result
 
-    if not player then return end
-
-    -- La tabla que almacena cada palabra incluida en la cadena args.
-    local words = {}
-
-    for arg in string.gmatch(args, "%S+") do
-        table.insert(words, arg)
+    for arg in string.gmatch(argsString, "%S+") do
+        table.insert(args, arg)
     end
-    local result = nil
 
-    -- El comando principal de aptweaks (experimental).
-    if command == "aptweaks" then
-
-        if #words <= 1 then
-
-            if #words == 1 then
-                local subcommand = words[1]
-
-                if subcommand == "cleardata" then
-                    result = {text = "Espere un momento", command = "clearData", data = {}}
-                end
-            else
-                result = {text = "Faltan argumentos. Use /aptweaks cleardata"}
-            end
-        else
-            result = {text = "Demasiados argumentos"}
-        end
+    -- El comando principal de APTweaks (para administradores).
+    if command == "aptweaks" and (isCoopHost() or isAdmin()) then
+        result = APTweaksCommand(player, args)
 
     -- El comando warp. 
-    elseif command == getText("UI_APTweaks_WarpCommand") and APTweaksVars.WarpSystemEnabled then
-        result = WarpComamand(player, words)
+    elseif command == getText("UI_APTweaks_WarpCommand") and APTweaksVars.TeleportSystemEnabled then
+        result = WarpCommand(player, args)
 
-    -- El comando safezone.
-    elseif command == "safezone" and APTweaksVars.SafehouseSystemEnabled then
-        result = SafehouseCommand(player, words)
+    -- El comando warps.
+    elseif command == "warps" and APTweaksVars.TeleportSystemEnabled then
+        result = WarpsCommand(args)
 
-    -- El comando de pruebas.
+    -- El comando claim.
+    elseif command == "claim" and APTweaksVars.SafehouseSystemEnabled then
+        result = ClaimCommand(player, args)
+
+    -- Un comando de pruebas (se usapara el desarrollo del mod).
     elseif command == "something" then
-        result = {text = "Espere un momento...", command = "something", data = {}}
+        result = {command = "something", data = {}}
     end
-    ProcessCommandResult(player, result)
+
+    return ProcessCommandResult(player, result)
 end
 
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: AddLineInChat de la clase Lua ISChat.
@@ -148,13 +141,14 @@ function ISChat:updateChatPrefixSettings()
             end
         end
     end
+
     old_updateChatPrefixSettings(self)
 end
 
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: onCommandEntered de la clase Lua ISChat.
 -- Añade la lógica adicional necesaria para ejecutar los comandos de APTweaks.
 function ISChat:onCommandEntered()
-
+    local player = player_flags.player
     -- Por alguna razón las cosas que necesito aquí no están en `self`.
     local chat = ISChat.instance
     -- Este es el texto que había en el cuadro de entrada de texto del chat al momento en el que se llamó a la función.
@@ -163,7 +157,7 @@ function ISChat:onCommandEntered()
 
     -- No hay un return para permitir que otros mods hagan lo suyo.
     if textEntry and textEntry ~= "" then
-        local aptweaksCommand = nil
+        local aptweaksCommand
 
         for _, command in ipairs(aptweaks_commands) do
 
@@ -171,31 +165,42 @@ function ISChat:onCommandEntered()
 
                 -- `stringStarts` devuelve true si el primer string coincide con el segundo, pero sólo los compara hasta el tamaño
                 --   del segundo string. Es decir que por ejemplo: `stringStarts("holaquehace", "holaq")` será true.
-                if luautils.stringStarts(textEntry, command.command) then
+                -- `textEntry .. " "` evita que el comando no se interprete si le falta " " al final, corrigue un bug en el
+                --- código vanilla, pero sólo para los comandos del mod. 
+                if luautils.stringStarts(textEntry .. " ", command.command) then
                     aptweaksCommand = command.command
 
                 -- Actualmente ningún comando de APTweaks tiene una versión corta, pero dejé esto por si acaso.
-                elseif command.shortCommand and luautils.stringStarts(textEntry, command.shortCommand) then
+                elseif command.shortCommand and luautils.stringStarts(textEntry .. " ", command.shortCommand) then
                     aptweaksCommand = command.shortCommand
                 end
 
-                -- No se establece chat.chatText.lastChatCommand debido a que, -aunque funcionaría-, es mejor reservarlo sólo a
+                -- No se establece `chat.chatText.lastChatCommand` debido a que, -aunque funcionaría-, es mejor reservarlo sólo a
                 --  los comandos de chat, como el /say, /whisper, y /all.
-                if aptweaksCommand ~= nil then
-                    ProcessAPTweaksCommand(command.name, string.sub(textEntry, #aptweaksCommand))
-                    -- Se limpia el campo de texto para evitar que vanilla lo procese otra vez.
-                    chat.textEntry:setText("")
-                    -- Se supone que esto registra la ejecución del comando en el log, pero no lo veo.
-                    chat:logChatCommand(textEntry)
-                    -- Evita que el cliente pueda volver a usar la entrada de texto del chat, y retira el foco.
-                    doKeyPress(false)
-                    -- El tiempo en ticks que debe pasar hasta que que doKeyPress se restablezca a true.
-                    chat.timerTextEntry = 20
+                if aptweaksCommand then
+                    local handled = false
+
+                    if player and player:isAlive() then
+                        handled = ProcessAPTweaksCommand(player, command.name, string.sub(textEntry, #aptweaksCommand))
+                    end
+
+                    if handled then
+                        -- Se limpia el campo de texto para evitar que vanilla lo procese otra vez.
+                        chat.textEntry:setText("")
+                        -- Se supone que esto registra la ejecución del comando en el log, pero no lo veo.
+                        chat:logChatCommand(textEntry)
+                        -- Evita que el cliente pueda volver a usar la entrada de texto del chat, y retira el foco.
+                        doKeyPress(false)
+                        -- El tiempo en ticks que debe pasar hasta que que doKeyPress se restablezca a true.
+                        chat.timerTextEntry = 20
+                    end
+
                     break
                 end
             end
         end
     end
+
     old_onCommandEntered(self)
 end
 
@@ -215,7 +220,7 @@ ISChat.onSwitchStream = function ()
     -- Si el índice actual no es igual al índice anterior +1. Esto significa que la función heredada ignoró uno o más índices. Esto
     --  puede ocurrir porque el cliente no debería verlos, -como cuando no tiene permisos suficientes-, o porque no pueden ser
     --  comprobados por el método `checkPlayerCanUseChat`. Esto último ocurre con todos los comandos de mods.
-    -- Si la función heredada proviene de un mod bien programado, significa que ignoró lo índices que no le corresponden.
+    -- Si la función heredada proviene de un mod bien programado, significa que ignoró los índices que no le corresponden.
     -- Nuevamente, no hay un return para permitir que otros mods hagan lo suyo.
     if actualStreamIndex ~= previousStreamIndex + 1 then
         -- Determina la cantidad máxima de índices que se evaluarán. Si la función vanilla regresó al primer índice, -lo que pasa
@@ -227,7 +232,6 @@ ISChat.onSwitchStream = function ()
 
         for i = previousStreamIndex + 1, maxIndex do
 
-            -- Es posible optimizar esto si combierto ´aptweaks_commands´ en un mapa.
             for j = 1, #aptweaks_commands do
 
                 if allChatStreams[i] and allChatStreams[i].command == aptweaks_commands[j].command then
@@ -237,6 +241,7 @@ ISChat.onSwitchStream = function ()
                     break
                 end
             end
+
             if isAptweaksCommand then break end
         end
     end
@@ -244,3 +249,5 @@ end
 
 -- Aún debo hacer que onCommandEntered ignore los comandos que están deshabilitados en la onfiguración, y que tanto los comandos
 --- de sistemas deshabilitados, como los que no debería ver por permissos, sean ignorados en onSwitchStream.
+-- Debo internacionalizar los comandos, pero aún necesito una biblioteca de internacionalización para las formas plurales si quero
+--- soportar más idiomas que el español e inglés.

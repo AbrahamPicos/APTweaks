@@ -1,0 +1,29 @@
+{
+    "Lua.diagnostics.globals": [
+        "ISChat",
+        "Events", 
+        "ModData", 
+        "getCore",
+        "getText",
+        "isAdmin",
+        "writeLog",
+        "isClient",
+        "isServer", 
+        "GameTime",
+        "getPlayer", 
+        "SafeHouse",
+        "isCoopHost",
+        "doKeyPress",
+        "triggerEvent",
+        "ZombRandBetween",
+        "getServerOptions",
+        "sendClientCommand",
+        "sendServerCommand",
+        "getConnectedPlayers",
+        "alreadyHaveSafehouse",
+        "getSteamIDFromUsername",
+
+        "luautils",
+        "SandboxVars"
+    ]
+}

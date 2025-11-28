@@ -1,12 +1,12 @@
 VERSION = 1,
 
-option APTweaks.WarpSystemEnabled
+option APTweaks.TeleportSystemEnabled
 {
     type = boolean,
     default = true,
 
     page = APTweaks,
-    translation = APTweaks_WarpSystemEnabled,
+    translation = APTweaks_TeleportSystemEnabled,
 }
 
 option APTweaks.AfkSystemEnabled
