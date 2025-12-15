@@ -1,4 +1,8 @@
 name=APTweaks
 id=com.github.abrahampicos.aptweaks
+
 description=A test mod for development on Project Zomboid servers.
 poster=poster.png
+
+modversion=0.1
+authors=AbrahamPicos

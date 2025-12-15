@@ -6,7 +6,7 @@ local aptweaks = require("APTweaks")
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
-local player_flags = aptweaks.player_flags
+local client_flags = aptweaks.client_flags
 
 local ProcessCommandResult = aptweaks.ProcessCommandResult
 
@@ -31,7 +31,7 @@ local teleportTimer = 0
 local teleportSeconds = 0
 
 local function OnGameStart()
-    player_flags.player = getPlayer()
+    client_flags.player = getPlayer()
 end
 
 -- En el evento OnInitGlobalModData.
@@ -50,7 +50,7 @@ end
 local function OnReceiveGlobalModData(key, data)
 
     if key == "aptweaks" then
-        aptweaks.aptweaks_data = data
+        aptweaks.aptweaks_data = data -- Probablemente hacer esto está mal, ya que dejaría de ser un objeto ModData.
     end
 end
 
@@ -61,7 +61,7 @@ end
 ---@param command string El comando en sí, es como el "asunto" en un correo electrónico.
 ---@param args table Los argumentos del comando. Es una tabla que puede contener cualquier cosa.
 local function OnServerCommand(module, command, args)
-    local player = player_flags.player
+    local player = client_flags.player
 
     if not (player and module == modID) then return end
 
@@ -95,13 +95,13 @@ local function OnServerCommand(module, command, args)
 
     elseif command == "TeleportPlayerCommand" then -- args = {x = x, y = y, z = z, name = name}
 
-        if player_flags.isTeleporting then
+        if client_flags.isTeleporting then
 
             local x, y, z = args.x, args.y, args.z
 
             player:setX(x); player:setY(y); player:setZ(z); player:setLx(x); player:setLy(y); player:setLz(z)
             player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), args.name), 0, 255, 0, 500)
-            player_flags.isTeleporting = nil
+            client_flags.isTeleporting = nil
         end
         result = {command = "TeleportCommand", data = {isRequest = false}}
     end
@@ -110,7 +110,7 @@ end
 
 local function updateAfkStatus(player, deltaTime, isFE)
 
-    if not player_flags.isMoving then
+    if not client_flags.isMoving then
         afkTimer = afkTimer + deltaTime
 
         if afkTimer >= 1 or (afkTimer == deltaTime and afkSeconds == 0) then
@@ -149,7 +149,7 @@ end
 local function resetClientStates(system)
 
     if system == "teleport" then
-        player_flags.isTeleporting = nil
+        client_flags.isTeleporting = nil
         teleportTimer, teleportSeconds = 0, 0
 
     elseif system == "afk" then
@@ -159,7 +159,7 @@ end
 
 local function updateTeleportStatus(player, deltaTime)
 
-    if not player_flags.isMoving and player_flags.isTeleporting then
+    if not client_flags.isMoving and client_flags.isTeleporting then
         teleportTimer = teleportTimer + deltaTime
 
         if teleportTimer >= 1 or (teleportTimer == deltaTime and teleportSeconds == 0) then
@@ -173,25 +173,25 @@ local function updateTeleportStatus(player, deltaTime)
                 player:setHaloNote(string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(teleportSeconds - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
 
                 if teleportSeconds == APTweaksVars.TeleportDelay then
-                    sendClientCommand(player, modID, "TeleportCommand", {location = player_flags.teleportLocation, isRequest = true})
-                    player_flags.hasTeleportRequest = true
+                    sendClientCommand(player, modID, "TeleportCommand", {location = client_flags.teleportLocation, isRequest = true})
+                    client_flags.hasTeleportRequest = true
                     -- El teleportCooldown se maneja del lado del servidor.
                 end
             end
         end
     end
 
-    if player_flags.isMoving or (not player_flags.isTeleporting and player_flags.hasTeleportRequest) then
+    if client_flags.isMoving or (not client_flags.isTeleporting and client_flags.hasTeleportRequest) then
 
         if teleportTimer ~= 0 or teleportSeconds ~= 0 then
 
-            if not player_flags.hasTeleportRequest then
+            if not client_flags.hasTeleportRequest then
                 player:setHaloNote(getText("UI_APTweaks_TeleportCancelled"), 255, 0, 0, 500)
             else
-                player_flags.hasTeleportRequest = nil
+                client_flags.hasTeleportRequest = nil
             end
         end
-        player_flags.isTeleporting = nil
+        client_flags.isTeleporting = nil
         teleportTimer, teleportSeconds = 0, 0
     end
 end
@@ -203,7 +203,7 @@ local function OnTickEvenPaused(tick)
     if not isClient() and (APTweaksVars.AfkSystemEnabled or APTweaksVars.TeleportSystemEnabled) then return end
 
     local deltaTime = GameTime.getInstance():getTimeDelta() -- Esta instancia puede cambiar.
-    local player = player_flags.player
+    local player = client_flags.player
 
     -- `IsoPlayer player` sólo puede ser false si el cliente entra al servidor por primera vez, o sin haber creado un nuevo
     -- personaje luego de haber muerto en la sesión previa.
@@ -215,10 +215,10 @@ local function OnTickEvenPaused(tick)
         local x, y, z = player:getX(), player:getY(), player:getZ()
 
         -- Hago esto porque `player:isMoving()` es inconsistente (probablemente pueda usar el evento OnPlayerMoved).
-        player_flags.isMoving = player:isAlive() and (player_flags.lastX ~= x or player_flags.lastY ~= y or player_flags.lastZ ~= z)
+        client_flags.isMoving = player:isAlive() and (client_flags.lastX ~= x or client_flags.lastY ~= y or client_flags.lastZ ~= z)
 
-        if player_flags.isMoving then
-            player_flags.lastX, player_flags.lastY, player_flags.lastZ = x, y, z
+        if client_flags.isMoving then
+            client_flags.lastX, client_flags.lastY, client_flags.lastZ = x, y, z
         end
     end
 
@@ -235,7 +235,7 @@ end
 -- En el evento OnFETick.
 -- Permite expulsar al cliente AFK antes de la pantalla de carga, cuando aún está en las pantallas de selección de zona de spawn y
 --- creación de personaje.
--- Lamentablemente, -debido a que el juego entra en un (sub)bucle durante la pantalla de carga-, no es posible expulsarlo después.
+-- Lamentablemente, -debido a que el juego entra en un (sub)bucle durante la pantalla de carga-, no es posible expulsarlo en ella.
 local function OnFETick()
 
     if isClient() and APTweaksVars.AfkSystemEnabled then

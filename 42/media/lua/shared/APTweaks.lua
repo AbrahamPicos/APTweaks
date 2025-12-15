@@ -7,12 +7,14 @@
 local aptweaks = {}
     -- La ID del mod.
     aptweaks.modID = "com.github.abrahampicos.aptweaks"
-    -- Variables para el jugador controladas por el evento tick; Son útiles para el comando warp y el sistema AFK.
-    aptweaks.player_flags = {}
+    -- Variables para el jugador controladas por el evento tick. Son útiles para el comando warp y el sistema AFK.
+    aptweaks.client_flags = {}
     -- Datos que APTweaks necesita en tiempo de ejecución, pero que no hace falta que persistan.
     aptweaks.aptweaks_temp = {}
+    -- Respaldos de las funciones que fueron sobrescritas por APTweaks.
+    aptweaks.legacy_functions = {}
 
-    -- Referencias a clases y métodos Java de Proyect Zomboid.
+    -- Referencias a clases y métodos Java de Project Zomboid.
 
     aptweaks.Events = Events
     aptweaks.ModData = ModData
@@ -36,7 +38,7 @@ local aptweaks = {}
     aptweaks.alreadyHaveSafehouse = alreadyHaveSafehouse
     aptweaks.getSteamIDFromUsername = getSteamIDFromUsername
 
-    -- Referencias a variables globales de Proyect Zomboid.
+    -- Referencias a variables globales de Project Zomboid.
 
     aptweaks.luautils = luautils
     aptweaks.APTweaksVars = SandboxVars.APTweaks
