@@ -96,7 +96,7 @@ local function OnServerCommand(module, command, args)
             local x, y, z = args.x, args.y, args.z
 
             player:setX(x); player:setY(y); player:setZ(z); player:setLx(x); player:setLy(y); player:setLz(z)
-            player:setHaloNote(string.format(getText("IGUI_APTWeaks_HaloNote_TeleportSuccess"), args.name), 0, 255, 0, 500)
+            player:setHaloNote(string.format(getText("IGUI_APTweaks_HaloNote_TeleportSuccess"), args.name), 0, 255, 0, 500)
             client_flags.isTeleporting = nil
         end
         result = {command = "TeleportCommand", data = {isRequest = false}}
@@ -152,7 +152,7 @@ local function updateAfkStatus(player, deltaTime, inMainMenu)
     if client_flags.isMoving then
 
         if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
-            player:setHaloNote(getText("IGUI_APTWeaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
+            player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
         end
 
         setTimer("afk")
@@ -166,7 +166,7 @@ local function updateAfkStatus(player, deltaTime, inMainMenu)
     if seconds <= APTweaksVars.AfkStart then return end
 
     if player then
-        player:setHaloNote(getText("IGUI_APTWeaks_HaloNote_Afk"), 255, 0, 0, 500) -- No hace nada si isAlive es false.
+        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_Afk"), 255, 0, 0, 500) -- No hace nada si isAlive es false.
     end
 
     if seconds ~= APTweaksVars.AfkStart + APTweaksVars.AfkKick then return end
@@ -187,7 +187,7 @@ local function updateTeleportStatus(player, deltaTime)
     if client_flags.isMoving then
 
         if not client_flags.hasTeleportRequest then
-            player:setHaloNote(getText("IGUI_APTWeaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
+            player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
             setTimer("teleport")
         end
 
@@ -200,7 +200,7 @@ local function updateTeleportStatus(player, deltaTime)
         if not isWholeSecond then return end
 
         if seconds <= APTweaksVars.TeleportDelay then
-            player:setHaloNote(string.format(getText("IGUI_APTWeaks_HaloNote_TeleportDelaying"), math.abs(teleportSeconds - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
+            player:setHaloNote(string.format(getText("IGUI_APTweaks_HaloNote_TeleportDelaying"), math.abs(teleportSeconds - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
 
             if seconds == APTweaksVars.TeleportDelay then
                 sendClientCommand(player, modID, "TeleportCommand", {location = client_flags.teleportLocation, isRequest = true})
