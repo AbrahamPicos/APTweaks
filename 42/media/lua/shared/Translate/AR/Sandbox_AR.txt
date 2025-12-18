@@ -1,4 +1,7 @@
+-- encoding = windows1252
+
 Sandbox_AR = {
+
 	Sandbox_APTweaks = "APTweaks",
 
 	Sandbox_APTweaks_TeleportSystemEnabled = "Sistema de teletransporte",
@@ -25,3 +28,4 @@ Sandbox_AR = {
 	Sandbox_APTweaks_AfkKick = "Expulsión en AFK",
 	Sandbox_APTweaks_AfkKick_tooltip = "Los segundos que el jugador debe permanecer quieto luego de considerarse AFK para ser expulsado del servidor."
 }
+

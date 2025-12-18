@@ -27,10 +27,11 @@ local aptweaks = {}
     aptweaks.GameTime = GameTime
     aptweaks.getPlayer = getPlayer
     aptweaks.SafeHouse = SafeHouse
+    aptweaks.Capability = Capability
     aptweaks.isCoopHost = isCoopHost
     aptweaks.doKeyPress = doKeyPress
     aptweaks.triggerEvent = triggerEvent
-    aptweaks.ZombRandBetween = ZombRandBetween
+    aptweaks.getTimestampMs = getTimestampMs
     aptweaks.getServerOptions = getServerOptions
     aptweaks.sendClientCommand = sendClientCommand
     aptweaks.sendServerCommand = sendServerCommand
@@ -68,23 +69,18 @@ function aptweaks.CreateFakeChatMessage(size, text, author, isShowAuthor)
 
             return prefix .. text
         end,
-        isServerAlert = function(self) return false end,
-        getAuthor = function(self) return author end,
         isShowAuthor = function(self) return isShowAuthor end,
+        getAuthor = function(self) return author end,
         getText = function(self) return text end,
-        setSize = function (self, newSize)
-            size = newSize
-        end
+        setSize = function (self, newSize) size = newSize end,
+        setText = function (self, newText) text = newText end
     }
 end
 
 -- Procesa la respuesta de todos los comandos de APTweaks cuando son usados a travez de APTweaks.
 ---@param player table Un objeto IsoPlayer.
----@param result table|nil La tabla con el resultado del comando.
----@return boolean handled Si el comando fue manejado completamente.
+---@param result table La tabla con el resultado del comando.
 function aptweaks.ProcessCommandResult(player, result)
-
-    if not result then return false end
 
     local data = result.data or result
     local commandSend = result.command or "MessageCommand"
@@ -102,8 +98,6 @@ function aptweaks.ProcessCommandResult(player, result)
             sendClientCommand(player, modID, commandSend, data)
         end
     end
-
-    return true
 end
 
 -- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).

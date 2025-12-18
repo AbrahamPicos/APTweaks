@@ -6,8 +6,7 @@
 
 local aptweaks, commands = require("APTweaks"), require("APTweaks_Client_Commands")
 
--- El módulo APTweaks.lua está en "shared", donde no está disponible ISChat.
-aptweaks.ISChat = aptweaks.ISChat or ISChat
+aptweaks.ISChat = aptweaks.ISChat or ISChat -- El módulo APTweaks.lua está en "shared", donde no está disponible ISChat.
 
 local modID = aptweaks.modID
 local client_flags = aptweaks.client_flags
@@ -19,11 +18,12 @@ local WarpsCommand = commands.WarpsCommand
 local ClaimCommand = commands.ClaimCommand
 local ProcessCommandResult = aptweaks.ProcessCommandResult
 
-local getText = aptweaks.getText
 local ISChat = aptweaks.ISChat
 local isAdmin = aptweaks.isAdmin
+local Capability = aptweaks.Capability
 local isCoopHost = aptweaks.isCoopHost
 local doKeyPress = aptweaks.doKeyPress
+local getTimestampMs = aptweaks.getTimestampMs
 
 legacy_functions.onSwitchStream = legacy_functions.onSwitchStream or ISChat.onSwitchStream
 legacy_functions.onCommandEntered = legacy_functions.onCommandEntered or ISChat.onCommandEntered
@@ -33,64 +33,93 @@ legacy_functions.updateChatPrefixSettings = legacy_functions.updateChatPrefixSet
 local luautils = aptweaks.luautils
 local APTweaksVars = aptweaks.APTweaksVars
 
--- Las definiciones de los comandos de APTweaks.
-local aptweaks_commands = {
-    {name = "aptweaks", command = "/aptweaks ", tabID = 1},
-    {name = "warp", command = "/warp ", tabID = 1},
-    {name = "warps", command = "/warps ", tabID = 1},
-    {name = "claim", command = "/claim ", tabID = 1},
-    {name = "something", command = "/something ", tabID = 1}}
+local aptweaks_commands = {}
+local aptweaks_streams = {}
 
--- Registrando los comandos de APTweaks en la clase Lua ISChat.
-for i = 1, #aptweaks_commands do
-    local isNeeded = true
+aptweaks_streams[1] = {
+    name = "aptweaks",
+    command = "/aptweaks ",
+    tabID = 1,
+    requires = {admin = true},
+    handler = function(player, args) return APTweaksCommand(player, args) end
+}
+aptweaks_streams[2] = {
+    name = "warp",
+    command = "/warp ",
+    tabID = 1,
+    requires = {teleportSystem = true},
+    handler = function(player, args) return WarpCommand(player, args) end
+}
+aptweaks_streams[3] = {
+    name = "warps",
+    command = "/warps ",
+    tabID = 1,
+    requires = {teleportSystem = true},
+    handler = function(_, args) return WarpsCommand(args) end
+}
+aptweaks_streams[4] = {
+    name = "claim",
+    command = "/claim ",
+    tabID = 1,
+    requires = {safehouseSystem = true},
+    handler = function(player, args) return ClaimCommand(player, args) end
+}
+aptweaks_streams[5] = {
+    name = "something",
+    command = "/something ",
+    tabID = 1,
+    requires = {admin = true},
+    handler = function(_, _) return {command = "something", data = {}} end
+}
 
-    for _, v in ipairs(ISChat.allChatStreams) do
+-- Registrar los comandos en la clase Lua ISChat.
+for _, command in ipairs(aptweaks_streams) do
+    local already = false
 
-        if v == aptweaks_commands[i] then
-            isNeeded = false
+    for _, value in ipairs(ISChat.allChatStreams) do
+
+        if value.name == command.name then
+            already = true
+            break
         end
     end
 
-    if isNeeded then
-        table.insert(ISChat.allChatStreams, aptweaks_commands[i])
+    if not already then
+        table.insert(ISChat.allChatStreams, command)
     end
+
+    -- Añadir el comando a un mapa para acceso rápido.
+    aptweaks_commands[command.name] = command
 end
 
--- Procesa los comandos de APTweaks.
----@param command string El comando que se interpretó.
----@param argsString string Una cadena de todos los argumentos que se usaron al ingresar el comando.
----@return boolean handled Si el comando fue menejado completamente por APTweaks.
+-- Valida si se cumplen los requerimientos para la ejecución de un comando.
+---@param player table El IsoPlayer asociado al cliente.
+---@param requires table Los requerimientos del comando.
+---@return boolean isValidated Si el comando deberia poder ejecutarse.
+local function checkRequires(player, requires)
+    return player and player:isAlive()
+       and (not requires.admin or isCoopHost() or isAdmin())
+       and (not requires.teleportSystem or APTweaksVars.TeleportSystemEnabled)
+       and (not requires.safehouseSystem or APTweaksVars.SafehouseSystemEnabled)
+end
+
 local function ProcessAPTweaksCommand(player, command, argsString)
+    -- Separar argumentos y limpiar espacios.
     local args = {}
-    local result
 
     for arg in string.gmatch(argsString, "%S+") do
         table.insert(args, arg)
     end
 
-    -- El comando principal de APTweaks (para administradores).
-    if command == "aptweaks" and (isCoopHost() or isAdmin()) then
-        result = APTweaksCommand(player, args)
+    -- Comprobar los requerimientos del comando.
+    local commandData = aptweaks_commands[command]
+    local isValidated = checkRequires(player, commandData.requires)
 
-    -- El comando warp. 
-    elseif command == getText("UI_APTweaks_WarpCommand") and APTweaksVars.TeleportSystemEnabled then
-        result = WarpCommand(player, args)
+    -- Ejecutar si validado, si no devolver mensaje genérico.
+    local result = (isValidated and commandData.handler(player, args))
+                or {text = "Unknown command " .. command}
 
-    -- El comando warps.
-    elseif command == "warps" and APTweaksVars.TeleportSystemEnabled then
-        result = WarpsCommand(args)
-
-    -- El comando claim.
-    elseif command == "claim" and APTweaksVars.SafehouseSystemEnabled then
-        result = ClaimCommand(player, args)
-
-    -- Un comando de pruebas (se usapara el desarrollo del mod).
-    elseif command == "something" then
-        result = {command = "something", data = {}}
-    end
-
-    return ProcessCommandResult(player, result)
+    ProcessCommandResult(player, result)
 end
 
 -- Interpreta si el texto ingresado en el chat es un comando de APTweaks.
@@ -100,51 +129,67 @@ end
 ---@param textEntry string El texto que se ingresó al chat.
 local function APTweaksOnCommandEntered(player, chat, textEntry)
 
-    -- Si la entrada de texto es válida.
-    -- En vanilla los comandos pueden ejecutarse incluso con el jugador muerto. Esto no es deseable para este mod.
-    if not textEntry or textEntry == "" or not player or not player:isAlive() then return end
+    -- Validar entrada de texto.
+    if not textEntry or textEntry == "" then return end
 
-    local commandString
-    local commandData
+    -- Comprobar enfriamiento por modo lento.
+    if not (player:getRole():hasCapability(Capability.IgnoreChatSlowMode) and (chat.timerMessageSlowMode > getTimestampMs())) then
+        return -- Debe haber una manera de evitar que el usuario vea este mensaje.
+    end
 
-    -- Si el texto coincide con un comando de APTweaks.
-    for _, command in ipairs(aptweaks_commands) do -- Value example: {name = "command", command = "/command " shortCommand = "/cmd ", tabID = 1}
+    -- Buscar coincidencia en APTweaks.
+    local entryWithSpace = textEntry .. " "
+    local commandString, commandData
 
-        -- La función llamada devuelve true si el primer string coincide con el segundo, pero sólo los compara hasta el tamaño
-        --- del segundo. Es decir, que por ejemplo: `stringStarts("holaquehace", "holaq")` será true.
-        -- En vanilla se compara `textEntry` con `command.command` directamente, lo que provoca que por ejemplo "/say" devuélva
-        --- "unknown command say" en lugar de un mensaje de error indicando que faltan argumentos. Esto no es deseable para este
-        --- mod, por lo que se sustituye `textEntry` por `textEntry .. " "`.
-        if luautils.stringStarts(textEntry .. " ", command.command) then
+    for _, command in ipairs(aptweaks_streams) do
+
+        if luautils.stringStarts(entryWithSpace, command.command) then
             commandString, commandData = command.command, command
             break
 
-        -- Actualmente ningún comando de APTweaks tiene una versión corta, pero dejé esto por si acaso.
-        elseif command.shortCommand and luautils.stringStarts(textEntry .. " ", command.shortCommand) then
+        elseif command.shortCommand and luautils.stringStarts(entryWithSpace, command.shortCommand) then
             commandString, commandData = command.shortCommand, command
             break
         end
     end
 
-    -- Si no se encontró un comando que coincida, o se ejecutó en la pestaña incorrecta.
-    -- Vanilla manejará el comando correctamente en estos casos.
-    if not commandString or chat.currentTabID ~= commandData.tabID then return end
+    -- Validar coincidencia y pestaña.
+    if not commandString or (chat.currentTabID ~= commandData.tabID) then return end
 
-    -- Procesar el comando.
-    local handled = ProcessAPTweaksCommand(player, commandData.name, string.sub(textEntry, #commandString))
+    -- Procesar comando.
+    local args = string.sub(textEntry, #commandString)
 
-    -- No se establece `chat.chatText.lastChatCommand` debido a que, -aunque funcionaría-, es mejor reservarlo sólo a los comandos
-    --- de chat, como el /say, /whisper, y /all.
-    if not handled then return end
+    ProcessAPTweaksCommand(player, commandData.name, args)
 
-    -- Se limpia el campo de texto para evitar que vanilla lo procese otra vez.
+    chat:unfocus()
     chat.textEntry:setText("")
-    -- Se supone que esto registra la ejecución del comando en el log, pero no lo veo.
-    chat:logChatCommand(textEntry)
-    -- Evita que el cliente pueda volver a usar la entrada de texto del chat, y retira el foco.
     doKeyPress(false)
-    -- El tiempo en ticks que debe pasar hasta que que doKeyPress se restablezca a true.
     chat.timerTextEntry = 20
+end
+
+-- Añade a la pseudo tab complete los comandos de APTweaks.
+---@param previousStreamIndex number El índice actual, antes de que la función heredada lo cambie.
+---@param curTxtPanel table Idk.
+local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
+    local actualStreamIndex = curTxtPanel.streamID
+    local allChatStreams = curTxtPanel.chatStreams
+
+    -- Si el índice actual es exactamente el siguiente esperado, no hay nada que hacer.
+    if actualStreamIndex == previousStreamIndex + 1 then return end
+
+    -- Determinar el rango máximo de índices a evaluar.
+    local maxIndex = (actualStreamIndex == 1) and #allChatStreams or (actualStreamIndex - 1)
+
+    -- Buscar coincidencia en APTweaks.
+    for i = previousStreamIndex + 1, maxIndex do
+        local aptweaksCommand = aptweaks_commands[allChatStreams[i].name]
+
+        if aptweaksCommand and checkRequires(client_flags.player, aptweaksCommand.requires) then
+            curTxtPanel.streamID = i
+            ISChat.instance.textEntry:setText(aptweaksCommand.command)
+            return
+        end
+    end
 end
 
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: AddLineInChat de la clase Lua ISChat.
@@ -196,9 +241,6 @@ function ISChat:updateChatPrefixSettings()
 end
 
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: onCommandEntered de la clase Lua ISChat.
--- Añade a la función la lógica adicional necesaria para interpretar los comandos de APTweaks.
--- Se usa la función auxiliar APTweaksOnCommandEntered para poder retornar mientras se sigue llamando a la función heredada. Esto 
----  mejora la legibilidad sin sacrificar la compatibilidad.
 function ISChat:onCommandEntered()
     -- Por alguna razón esto no está en la tabla `self`.
     local chat = ISChat.instance
@@ -207,56 +249,15 @@ function ISChat:onCommandEntered()
     legacy_functions.onCommandEntered(self)
 end
 
----comment
----@param previousStreamIndex any
----@param curTxtPanel any
-local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
-    local actualStreamIndex = curTxtPanel.streamID
-    local allChatStreams = curTxtPanel.chatStreams
-
-    -- Si el índice actual no es igual al índice anterior +1. Esto significa que la función heredada ignoró uno o más índices. Esto
-    --  puede ocurrir porque el cliente no debería verlos, -como cuando no tiene permisos suficientes-, o porque no pueden ser
-    --  comprobados por el método `checkPlayerCanUseChat`. Esto último ocurre con todos los comandos de mods.
-    -- Si la función heredada proviene de un mod bien programado, significa que ignoró los índices que no le corresponden.
-    -- Nuevamente, no hay un return para permitir que otros mods hagan lo suyo.
-    if not (actualStreamIndex ~= previousStreamIndex + 1) then return end
-
-    -- Determina la cantidad máxima de índices que se evaluarán. Si la función vanilla regresó al primer índice, -lo que pasa
-    --  siempre que ha recorrido ya todos los streams-, se evaluará desde el índice anterior (´previousStreamIndex + 1´) hasta
-    --  el índice final (´#allChatStreams´), hasta encontrar el siguiente comando de APTweaks. De lo contrarío, sólo evaluará
-    --  los índices desde el índice anterior hasta el actual (´i = previousStreamIndex + 1, actualStreamIndex - 1´).
-    local maxIndex = (actualStreamIndex == 1 and #allChatStreams or actualStreamIndex - 1)
-    local isAptweaksCommand = false
-
-    for i = previousStreamIndex + 1, maxIndex do
-
-        for j = 1, #aptweaks_commands do
-
-            if allChatStreams[i] and allChatStreams[i].command == aptweaks_commands[j].command then
-                curTxtPanel.streamID = i
-                ISChat.instance.textEntry:setText(aptweaks_commands[j].command)
-                isAptweaksCommand = true
-                break
-            end
-        end
-
-        if isAptweaksCommand then break end
-    end
-end
-
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: onSwitchStream de la clase Lua ISChat.
 -- La función heredada es llamada temprano para que todos los mods tengan la oportunidad de almacenar la ID del stream anterior.
 ISChat.onSwitchStream = function ()
     local curTxtPanel = ISChat.instance.chatText
-    -- El índice actual, antes de que la función heredada lo cambie.
-    -- Mientras respeten la convención, todos los mods tendrían que tener la oportunidad de almacenarlo.
     local previousStreamIndex = curTxtPanel.streamID
 
     legacy_functions.onSwitchStream()
     APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
 end
 
--- Aún debo hacer que onCommandEntered ignore los comandos que están deshabilitados en la onfiguración, y que tanto los comandos
---- de sistemas deshabilitados, como los que no debería ver por permissos, sean ignorados en onSwitchStream.
--- Debo internacionalizar los comandos, pero aún necesito una biblioteca de internacionalización para las formas plurales si quero
---- soportar más idiomas que el español e inglés.
+-- Debo internacionalizar los comandos, pero aún necesito una biblioteca de internacionalización para las formas plurales si
+-- quero soportar más idiomas que el español e inglés.

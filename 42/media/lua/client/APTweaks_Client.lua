@@ -21,14 +21,9 @@ local SafeHouse = aptweaks.SafeHouse
 local sendClientCommand = aptweaks.sendClientCommand
 local alreadyHaveSafehouse = aptweaks.alreadyHaveSafehouse
 
--- Suma el tiempo que se ha pasado AFK hasta alcanzar un segundo.
-local afkTimer = 0
--- El número de segundos que que se ha estado AFK.
-local afkSeconds = 0
--- Suma el tiempo desde que se solicitó una teletransportación hasta alcanzar un segundo.
-local teleportTimer = 0
--- El número de segundos que han pasado desde que se solicitó una teletransportación.
-local teleportSeconds = 0
+local aptweaks_temp = aptweaks.aptweaks_temp
+
+aptweaks_temp.timers = {}
 
 local function OnGameStart()
     client_flags.player = getPlayer()
@@ -63,6 +58,7 @@ end
 local function OnServerCommand(module, command, args)
     local player = client_flags.player
 
+    -- Si no hay un jugador o el módulo no coincide, no hay nada que hacer.
     if not (player and module == modID) then return end
 
     local result
@@ -100,7 +96,7 @@ local function OnServerCommand(module, command, args)
             local x, y, z = args.x, args.y, args.z
 
             player:setX(x); player:setY(y); player:setZ(z); player:setLx(x); player:setLy(y); player:setLz(z)
-            player:setHaloNote(string.format(getText("UI_APTweaks_TeleportSuccess"), args.name), 0, 255, 0, 500)
+            player:setHaloNote(string.format(getText("IGUI_APTWeaks_HaloNote_TeleportSuccess"), args.name), 0, 255, 0, 500)
             client_flags.isTeleporting = nil
         end
         result = {command = "TeleportCommand", data = {isRequest = false}}
@@ -108,92 +104,109 @@ local function OnServerCommand(module, command, args)
     ProcessCommandResult(player, result)
 end
 
-local function updateAfkStatus(player, deltaTime, isFE)
-
-    if not client_flags.isMoving then
-        afkTimer = afkTimer + deltaTime
-
-        if afkTimer >= 1 or (afkTimer == deltaTime and afkSeconds == 0) then
-
-            if afkTimer >= 1 then
-                afkTimer = afkTimer - 1
-                afkSeconds = afkSeconds + 1
-            end
-
-            if afkSeconds >= APTweaksVars.AfkStart then
-
-                if player then
-                    player:setHaloNote(getText("UI_APTweaks_Afk"), 255, 0, 0, 500) -- No hace nada si isAlive es false.
-                end
-
-                if afkSeconds == APTweaksVars.AfkStart + APTweaksVars.AfkKick then
-
-                    if isFE then
-                        getCore():quit()
-                    else
-                        getCore():exitToMenu()
-                    end
-                end
-            end
-        end
-    else
-        if player and afkSeconds >= APTweaksVars.AfkStart then
-            player:setHaloNote(getText("UI_APTweaks_AfkRemoved"), 0, 255, 0, 500)
-        end
-        afkTimer, afkSeconds = 0, 0
-    end
+-- Establece o respablece un tiemer.
+---@param name string El nombre del timer.
+local function setTimer(name)
+    aptweaks_temp.timers[name] = {justAdded = true, counter = 0, cycles = 0}
 end
 
--- Función auxiliar para resetear los estados.
----@param system string El sistema de APTweaks para el que deben reiniciarse los estados.
-local function resetClientStates(system)
+-- Obtiene el ciclo actual de un timer.
+---@param name string El nombre del timer.
+---@return number cycle El número de ciclo.
+local function getTimerCycle(name)
+    return aptweaks_temp.timers[name].cycle
+end
 
-    if system == "teleport" then
-        client_flags.isTeleporting = nil
-        teleportTimer, teleportSeconds = 0, 0
+-- Actualiza un Timer, y devuelve sus variables.
+---@param name string El nombre del timer.
+---@param time number El tiempo que se añadirá al timer.
+---@return number|nil cycle El número de ciclo.
+---@return boolean isCycleUpdate Si esta actualización resultó en un nuevo ciclo.
+local function getTimerUpdate(name, time)
+    local timer = aptweaks_temp.timers[name]
+    local isCycleUpdate = timer.justAdded
 
-    elseif system == "afk" then
-        afkTimer, afkSeconds = 0, 0
+    timer.counter = timer.counter + time
+    timer.justAdded = false
+
+    if timer.counter >= 1 then
+        timer.counter = timer.counter - 1
+        timer.cycles = timer.cycles + 1
+        isCycleUpdate = true
     end
+
+    return timer.cycles, isCycleUpdate
+end
+
+-- Añadir Timers.
+setTimer("afk")
+setTimer("teleport")
+
+-- Actualiza el estado AFK del jugador.
+---@param player table El IsoPlayer asociado al cliente.
+---@param deltaTime number La fracción de segundo que ocurrió desde el último tick.
+---@param inMainMenu any Si el cliente aún está en el menú principal.
+local function updateAfkStatus(player, deltaTime, inMainMenu)
+
+    -- Si el jugador se movió, reiniciar estado.
+    if client_flags.isMoving then
+
+        if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
+            player:setHaloNote(getText("IGUI_APTWeaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
+        end
+
+        setTimer("afk")
+        return
+    end
+
+    -- Ejecutar acciones según el tiempo que ha pasado.
+    local seconds, isWholeSecond = getTimerUpdate("afk", deltaTime)
+
+    if not isWholeSecond then return end
+    if seconds <= APTweaksVars.AfkStart then return end
+
+    if player then
+        player:setHaloNote(getText("IGUI_APTWeaks_HaloNote_Afk"), 255, 0, 0, 500) -- No hace nada si isAlive es false.
+    end
+
+    if seconds ~= APTweaksVars.AfkStart + APTweaksVars.AfkKick then return end
+
+    if inMainMenu then
+        getCore():quit()
+        return
+    end
+
+    getCore():exitToMenu()
 end
 
 local function updateTeleportStatus(player, deltaTime)
 
-    if not client_flags.isMoving and client_flags.isTeleporting then
-        teleportTimer = teleportTimer + deltaTime
+    -- Si no se está en teletransporte o no se ha enviado una solicitud de teletransporte, no hay nada qué hacer.
+    if not (client_flags.isTeleporting and client_flags.hasTeleportRequest) then return end
 
-        if teleportTimer >= 1 or (teleportTimer == deltaTime and teleportSeconds == 0) then
+    if client_flags.isMoving then
 
-            if teleportTimer >= 1 then
-                teleportTimer = teleportTimer - 1
-                teleportSeconds = teleportSeconds + 1
-            end
-
-            if teleportSeconds <= APTweaksVars.TeleportDelay then
-                player:setHaloNote(string.format(getText("UI_APTweaks_TeleportDelaying"), math.abs(teleportSeconds - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
-
-                if teleportSeconds == APTweaksVars.TeleportDelay then
-                    sendClientCommand(player, modID, "TeleportCommand", {location = client_flags.teleportLocation, isRequest = true})
-                    client_flags.hasTeleportRequest = true
-                    -- El teleportCooldown se maneja del lado del servidor.
-                end
-            end
+        if not client_flags.hasTeleportRequest then
+            player:setHaloNote(getText("IGUI_APTWeaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
+            setTimer("teleport")
         end
-    end
 
-    if client_flags.isMoving or (not client_flags.isTeleporting and client_flags.hasTeleportRequest) then
-
-        if teleportTimer ~= 0 or teleportSeconds ~= 0 then
-
-            if not client_flags.hasTeleportRequest then
-                player:setHaloNote(getText("UI_APTweaks_TeleportCancelled"), 255, 0, 0, 500)
-            else
-                client_flags.hasTeleportRequest = nil
-            end
-        end
         client_flags.isTeleporting = nil
-        teleportTimer, teleportSeconds = 0, 0
+        return
     end
+
+    local seconds, isWholeSecond = TimerManager:getUpdate("teleport", deltaTime)
+
+        if not isWholeSecond then return end
+
+        if seconds <= APTweaksVars.TeleportDelay then
+            player:setHaloNote(string.format(getText("IGUI_APTWeaks_HaloNote_TeleportDelaying"), math.abs(teleportSeconds - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
+
+            if seconds == APTweaksVars.TeleportDelay then
+                sendClientCommand(player, modID, "TeleportCommand", {location = client_flags.teleportLocation, isRequest = true})
+                client_flags.hasTeleportRequest = true
+            end
+        end
 end
 
 -- En el evento OnTickEvenPaused.
@@ -252,7 +265,6 @@ Events.OnTickEvenPaused.Add(OnTickEvenPaused)
 Events.OnFETick.Add(OnFETick)
 Events.OnServerCommand.Add(OnServerCommand)
 
--- Mover toda la lógica del comando safezone define al lado del servidor.
 -- Añadir la lógica necesaria del lado del servidor para manejar el teleportCooldown.
 -- Revisar si puedo usar algún método como IsoPlayer.getSpeed para comprobar el movimento, en lugar de lo que hago ahora.
 --- Hay un evento de movimiento.

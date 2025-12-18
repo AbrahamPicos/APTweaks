@@ -1,4 +1,7 @@
-Sandbox_ES = {
+-- encoding = utf8
+
+Sandbox_EN = {
+
 	Sandbox_APTweaks = "APTweaks",
 
 	Sandbox_APTweaks_TeleportSystemEnabled = "Teleport system",

@@ -1,0 +1,38 @@
+-- encoding = utf8
+
+IG_UI_EN = {
+
+    IGUI_APTWeaks_ListSeparator = ", ",
+    IGUI_APTWeaks_ListSeparator_Final = ", and ",
+    IGUI_APTWeaks_AviableWarps = "Available warps are %s",    
+    IGUI_APTWeaks_MainCommandUsage = "/aptweaks [cleardata|safezone|warp]",
+    IGUI_APTWeaks_MainCommandUsage_Safezone = "/aptweaks [pos1|pos2|add|remove|prune]",
+    IGUI_APTWeaks_MainCommandUsage_Warp = "/aptweaks [add|remove]",
+    IGUI_APTWeaks_ClaimCommandUsage = "/claim",
+    IGUI_APTWeaks_SomethingCommandUsage = "/something",
+    IGUI_APTWeaks_WarpCommandUsage = "/warp <warp>",
+    IGUI_APTWeaks_WarpsCommandUsage = "/warps"
+
+    -- IG_UI_APTweaks_Chat
+
+    IGUI_APTWeaks_Chat_CommandCooldown = "<RGB:1,0,0>You must wait %d seconds before running this command again.",
+    IGUI_APTWeaks_Chat_MovingExecutionForbidden = "<RGB:1,0,0>You cannot execute this command while moving.",
+    IGUI_APTWeaks_Chat_RidingExecutionForbidden = "<RGB:1,0,0>You cannot execute this command inside a vehicle.",
+    IGUI_APTWeaks_Chat_AlreadyExecuting = "<RGB:1,0,0>The command is already being executed.",
+    IGUI_APTWeaks_Chat_FewArgs = "<RGB:1,0,0>Missing arguments. Use %s.",
+    IGUI_APTWeaks_Chat_ManyArgs = "<RGB:1,0,0>Too many arguments. Use %s.",
+    IGUI_APTWeaks_Chat_IncorrectUse = "<RGB:1,0,0>Incorrect use. Use %s.",
+    IGUI_APTWeaks_Chat_TeleportBegins = "<RGB:0,1,0>Teleporting to %s...",
+    IGUI_APTWeaks_Chat_MissingWarp = "<RGB:1,0,0>Warp %s not found. %s.",
+    IGUI_APTWeaks_Chat_VertexDefined = "<RGB:0,1,0>La posición del vértice <RGB:0,0,1><SPACE>%s <RGB:0,1,0><SPACE>del área se definió en <RGB:0,1,0><SPACE>%d,%d<RGB:0,1,0><SPACE>.",
+    IGUI_APTWeaks_Chat_VertexNeeded = "<RGB:1,0,0>Primero debe definir el área con <RGB:0,0,1><SPACE>/pos1 <RGB:1,0,0><SPACE>y <RGB:0,0,1><SPACE>/pos2.",
+
+    -- IG_UI_APTweaks_HaloNote
+
+    IGUI_APTWeaks_HaloNote_Afk = "You are now AFK."
+    IGUI_APTWeaks_HaloNote_AfkRemoved = "You are no longer AFK.",
+    IGUI_APTWeaks_HaloNote_TeleportCancelled = "Teleportation cancelled.",
+    IGUI_APTWeaks_HaloNote_TeleportDelaying = "Teleporting. %d...",
+    IGUI_APTWeaks_HaloNote_TeleportSuccess = "Teleported to %s.",
+}
+

@@ -13,7 +13,7 @@ local client_flags = aptweaks.client_flags
 aptweaks_temp.safezone = {}
 
 -- Devuélve la lista de warps disponibles en forma de string, en un formato compatible con el español e inglés.
--- Probablementedeba remover esto para evitar tener que hacer una biblioteca de internacionalización.
+-- Probablemente deba remover esto para evitar tener que hacer una biblioteca de internacionalización.
 ---@return string aviableWarps `aviableWarps = warp1, warp2, warp3, and warp4`.
 local function ShowWarps()
     local aptweaks_data = aptweaks.aptweaks_data
@@ -32,14 +32,14 @@ local function ShowWarps()
             aviableWarps = tostring(warp)
 
         elseif processedElements == totalElements then
-            aviableWarps = aviableWarps .. getText("UI_APTweaks_ListSeparator_Final") .. tostring(warp)
+            aviableWarps = aviableWarps .. getText("IGUI_APTWeaks_ListSeparator_Final") .. tostring(warp)
 
         else
-            aviableWarps = aviableWarps .. getText("UI_APTweaks_ListSeparator") .. tostring(warp)
+            aviableWarps = aviableWarps .. getText("IGUI_APTWeaks_ListSeparator") .. tostring(warp)
         end
     end
 
-    return string.format(getText("UI_APTweaks_AviableWarps"), aviableWarps)
+    return aviableWarps
 end
 
 -- El comando `/aptweaks warp add|remove`.
@@ -59,7 +59,7 @@ local function APTweaksWarpCommand(player, action, warp)
         data = {action = action, name = warp}
 
     else
-        return {text = string.format(getText("UI_APTweaks_Chat_IncorrectUse"), getText("UI_APTweaks_MainCommandUsage_Warp"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_IncorrectUse"), getText("IGUI_APTWeaks_MainCommandUsage_Warp"))}
     end
 
     return {command = "WarpCommand", data = data}
@@ -76,13 +76,13 @@ local function APTWeaksSafezoneCommand(player, action)
     if action == "pos1" or action == "pos2" then
         aptweaks_temp.safezone[action] = {x = x, y = y}
 
-        return {text = string.format(getText("UI_APTweaks_Chat_VertexDefined"), action, x, y)}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_VertexDefined"), action, x, y)}
 
     elseif action == "add" then
         local pos1, pos2 = aptweaks_temp.safezone.pos1, aptweaks_temp.safezone.pos2
 
         if not (pos1 and pos2) then
-            return {text = getText("UI_APTweaks_Chat_VertexNeeded")}
+            return {text = getText("IGUI_APTWeaks_Chat_VertexNeeded")}
         end
 
         data = {action = action, x1 = pos1.x, y1 = pos1.y, x2 = pos2.x, y2 = pos2.y}
@@ -94,7 +94,7 @@ local function APTWeaksSafezoneCommand(player, action)
         data = {action = action}
 
     else
-        return {text = string.format(getText("UI_APTweaks_Chat_IncorrectUse"), getText("UI_APTweaks_MainCommandUsage_Safezone"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_IncorrectUse"), getText("IGUI_APTWeaks_MainCommandUsage_Safezone"))}
     end
 
     return {command = "SafezoneCommand", data = data}
@@ -108,10 +108,10 @@ function commands.APTweaksCommand(player, args)
     local argc = #args
 
     if argc > 3 then
-        return {text = string.format(getText("UI_APTweaks_Chat_ManyArgs"), getText("UI_APTweaks_MainCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_ManyArgs"), getText("IGUI_APTWeaks_MainCommandUsage"))}
 
     elseif argc < 1 then
-        return {text = string.format(getText("UI_APTweaks_Chat_FewArgs"), getText("UI_APTweaks_MainCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_FewArgs"), getText("IGUI_APTWeaks_MainCommandUsage"))}
     end
 
     local subcommand = args[1]
@@ -125,7 +125,7 @@ function commands.APTweaksCommand(player, args)
             return APTWeaksSafezoneCommand(player, args[2])
 
         else
-            return {text = string.format(getText("UI_APTweaks_Chat_FewArgs"), getText("UI_APTweaks_MainCommandUsage_Safezone"))}
+            return {text = string.format(getText("IGUI_APTWeaks_Chat_FewArgs"), getText("IGUI_APTWeaks_MainCommandUsage_Safezone"))}
         end
 
     elseif subcommand == "warp" then
@@ -134,10 +134,10 @@ function commands.APTweaksCommand(player, args)
             return APTweaksWarpCommand(player, args[2], args[3])
 
         else
-            return {text = string.format(getText("UI_APTweaks_Chat_FewArgs"), getText("UI_APTweaks_MainCommandUsage_Warp"))}
+            return {text = string.format(getText("IGUI_APTWeaks_Chat_FewArgs"), getText("IGUI_APTWeaks_MainCommandUsage_Warp"))}
         end
     else
-        return {text = string.format(getText("UI_APTweaks_Chat_IncorrectUse"), getText("UI_APTweaks_MainCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_IncorrectUse"), getText("IGUI_APTWeaks_MainCommandUsage"))}
     end
 end
 
@@ -149,36 +149,36 @@ function commands.WarpCommand(player, args)
     local argc = #args
 
     if argc > 1 then
-        return {text = string.format(getText("UI_APTweaks_Chat_ManyArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_ManyArgs"), getText("IGUI_APTWeaks_WarpCommandUsage"))}
 
     elseif argc < 1 then
-        return {text = string.format(getText("UI_APTweaks_Chat_FewArgs"), getText("UI_APTweaks_WarpCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_FewArgs"), getText("IGUI_APTWeaks_WarpCommandUsage"))}
     end
 
     local warp = args[1] -- El warp que el jugador ingresó, tal cual como lo escribió.
     local location = aptweaks.aptweaks_data.warps[warp]
 
     if not location then
-        return {text = string.format(getText("UI_APTweaks_Chat_MissingWarp"), warp, ShowWarps())}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_MissingWarp"), warp, string.format(getText("IGUI_APTWeaks_AviableWarps"), ShowWarps()))}
     end
 
     if player:getVehicle() then
-        return {text = getText("UI_APTweaks_Chat_RidingExecutionForbidden")}
+        return {text = getText("IGUI_APTWeaks_Chat_RidingExecutionForbidden")}
     end
 
     if client_flags.isMoving then
-        return {text = getText("UI_APTweaks_Chat_MovingExecutionForbidden")}
+        return {text = getText("IGUI_APTWeaks_Chat_MovingExecutionForbidden")}
     end
 
-    if client_flags.isTeleporting and client_flags.hasTeleportRequest then -- Esto podría estar mal.
-        return {text = getText("UI_APTweaks_Chat_AlreadyExecuting")}
+    if client_flags.isTeleporting or client_flags.hasTeleportRequest then
+        return {text = getText("IGUI_APTWeaks_Chat_AlreadyExecuting")}
     end
 
     client_flags.isTeleporting = true
     client_flags.teleportLocation = {x= location.x, y = location.y, z = location.z, name = warp}
 
-    return {text = string.format(getText("UI_APTweaks_Chat_TeleportBegins"), warp)}
-    --return {text = string.format(getText("UI_APTweaks_TeleportCooldown"), client_flags.warpCommandCooldownSecondsLeft)}
+    return {text = string.format(getText("IGUI_APTWeaks_Chat_TeleportBegins"), warp)}
+    --return {text = string.format(getText("IGUI_APTWeaks_TeleportCooldown"), client_flags.warpCommandCooldownSecondsLeft)}
 end
 
 -- El comando `/warps`.
@@ -187,10 +187,10 @@ end
 function commands.WarpsCommand(args)
 
     if #args > 0 then
-        return {text = string.format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_WarpsCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_ManyArgs"), getText("IGUI_APTWeaks_WarpsCommandUsage"))}
     end
 
-    return {text = ShowWarps()}
+    return {text = string.format(getText("IGUI_APTWeaks_AviableWarps") .. ".", ShowWarps())} -- WARN: Esto no es internacionalizable.
 end
 
 -- El comando `/claim`.
@@ -200,7 +200,7 @@ end
 function commands.ClaimCommand(player, args)
 
     if #args > 0 then
-        return {text = string.format(getText("UI_APTweaks_ManyArgs"), getText("UI_APTweaks_ClaimCommandUsage"))}
+        return {text = string.format(getText("IGUI_APTWeaks_Chat_ManyArgs"), getText("IGUI_APTWeaks_ClaimCommandUsage"))}
     end
 
     local x, y = math.floor(player:getX()), math.floor(player:getY())

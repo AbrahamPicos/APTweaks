@@ -1,17 +1,20 @@
+-- encoding = utf8
+
 Sandbox_ES = {
+
 	Sandbox_APTweaks = "APTweaks",
 
 	Sandbox_APTweaks_TeleportSystemEnabled = "Sistema de teletransporte",
-	Sandbox_APTweaks_TeleportSystemEnabled_tooltip = "Si se usar· el sistema de teletransporte de APTweaks.",
+	Sandbox_APTweaks_TeleportSystemEnabled_tooltip = "Si se usar√° el sistema de teletransporte de APTweaks.",
 
 	Sandbox_APTweaks_AfkSystemEnabled = "Sistema AFK",
-	Sandbox_APTweaks_AfkSystemEnabled_tooltip = "Si se usar· el sistema anti-AFK de APTweaks.",
+	Sandbox_APTweaks_AfkSystemEnabled_tooltip = "Si se usar√° el sistema anti-AFK de APTweaks.",
 
 	Sandbox_APTweaks_SafehouseSystemEnabled = "Sistema de refugios sin edificios",
-	Sandbox_APTweaks_SafehouseSystemEnabled_tooltip = "Si se usar· el sistema de refugios sin edificios de APTweaks.",
+	Sandbox_APTweaks_SafehouseSystemEnabled_tooltip = "Si se usar√° el sistema de refugios sin edificios de APTweaks.",
 
 	Sandbox_APTweaks_AnticheatSystemEnabled = "Sistema anticheat",
-	Sandbox_APTweaks_AnticheatSystemEnabled_tooltip = "Si se usar· el sistema anticheat de APTweaks.",
+	Sandbox_APTweaks_AnticheatSystemEnabled_tooltip = "Si se usar√° el sistema anticheat de APTweaks.",
 
 	Sandbox_APTweaks_TeleportDelay = "Retraso de teletransporte",
 	Sandbox_APTweaks_TeleportDelay_tooltip = "Los segundos que el jugador debe permanecer quieto para ser teletransportado.",
@@ -22,6 +25,6 @@ Sandbox_ES = {
 	Sandbox_APTweaks_AfkStart = "Inicio de AFK",
 	Sandbox_APTweaks_AfkStart_tooltip = "Los segundos que el jugador debe permanecer quieto para considerarse AFK.",
 
-	Sandbox_APTweaks_AfkKick = "ExpulsiÛn en AFK",
+	Sandbox_APTweaks_AfkKick = "Expulsi√≥n en AFK",
 	Sandbox_APTweaks_AfkKick_tooltip = "Los segundos que el jugador debe permanecer quieto luego de considerarse AFK para ser expulsado del servidor."
 }

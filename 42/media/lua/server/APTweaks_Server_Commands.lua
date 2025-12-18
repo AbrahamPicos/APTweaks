@@ -180,18 +180,18 @@ end
 ---@param args table 
 ---@return table result
 function commands.SafezoneCommand(player, args)
-    local action = args.action
 
-    -- Validar permisos
+    -- Validar permisos.
     local requireAdmin = {add = true, remove = true, claim = false}
+    local action = args.action
 
     if requireAdmin[action] and player:getAccessLevel() ~= "admin" then
         return {text = "No tienes permitido realizar esa acción."}
     end
 
+    -- Si va a añadirse un área, añadirla.
     local data = aptweaks.aptweaks_data
 
-    -- Si va a añadirse un área, añadirla.
     if action == "add" then
         return handleAdd(args, data)
     end
