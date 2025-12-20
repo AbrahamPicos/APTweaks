@@ -235,7 +235,7 @@ function commands.TeleportCommand(player, args)
             aptweaks_temp.inTeleport[player:getUsername()] = -1
         end
 
-        return {command = "TeleportPlayerCommand", data = args}
+        return {command = "TeleportCommand", data = args}
 
     else
 

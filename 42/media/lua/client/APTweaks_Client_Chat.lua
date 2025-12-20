@@ -4,7 +4,7 @@
 
 -- Este archivo sobrescribe múltiples funciones del juego base. No lo recargue si hay otros mods.
 
-local aptweaks, commands = require("APTweaks"), require("APTweaks_Client_Commands")
+local aptweaks, chatCommands = require("APTweaks"), require("APTweaks_Client_Chat_Commands")
 
 aptweaks.ISChat = aptweaks.ISChat or ISChat -- El módulo APTweaks.lua está en "shared", donde no está disponible ISChat.
 
@@ -12,10 +12,10 @@ local modID = aptweaks.modID
 local client_flags = aptweaks.client_flags
 local legacy_functions = aptweaks.legacy_functions
 
-local APTweaksCommand = commands.APTweaksCommand
-local WarpCommand = commands.WarpCommand
-local WarpsCommand = commands.WarpsCommand
-local ClaimCommand = commands.ClaimCommand
+local APTweaksCommand = chatCommands.APTweaksCommand
+local WarpCommand = chatCommands.WarpCommand
+local WarpsCommand = chatCommands.WarpsCommand
+local ClaimCommand = chatCommands.ClaimCommand
 local ProcessCommandResult = aptweaks.ProcessCommandResult
 
 local ISChat = aptweaks.ISChat
@@ -34,42 +34,44 @@ local luautils = aptweaks.luautils
 local APTweaksVars = aptweaks.APTweaksVars
 
 local aptweaks_commands = {}
-local aptweaks_streams = {}
+local aptweaks_streams = {
 
-aptweaks_streams[1] = {
-    name = "aptweaks",
-    command = "/aptweaks ",
-    tabID = 1,
-    requires = {admin = true},
-    handler = function(player, args) return APTweaksCommand(player, args) end
-}
-aptweaks_streams[2] = {
-    name = "warp",
-    command = "/warp ",
-    tabID = 1,
-    requires = {teleportSystem = true},
-    handler = function(player, args) return WarpCommand(player, args) end
-}
-aptweaks_streams[3] = {
-    name = "warps",
-    command = "/warps ",
-    tabID = 1,
-    requires = {teleportSystem = true},
-    handler = function(_, args) return WarpsCommand(args) end
-}
-aptweaks_streams[4] = {
-    name = "claim",
-    command = "/claim ",
-    tabID = 1,
-    requires = {safehouseSystem = true},
-    handler = function(player, args) return ClaimCommand(player, args) end
-}
-aptweaks_streams[5] = {
-    name = "something",
-    command = "/something ",
-    tabID = 1,
-    requires = {admin = true},
-    handler = function(_, _) return {command = "something", data = {}} end
+    {
+        name = "aptweaks",
+        command = "/aptweaks ",
+        tabID = 1,
+        usage = "",
+        requires = {admin = true, maxArgs = 3, minArgs = 1},
+        handler = function(player, args) return APTweaksCommand(player, args) end
+    }, {
+        name = "warp",
+        command = "/warp ",
+        tabID = 1,
+        usage = "",
+        requires = {teleportSystem = true, maxArgs = 1, minArgs = 1},
+        handler = function(player, args) return WarpCommand(player, args) end
+    }, {
+        name = "warps",
+        command = "/warps ",
+        tabID = 1,
+        usage = "IGUI_APTweaks_WarpsCommandUsage",
+        requires = {teleportSystem = true, maxArgs = 0, minArgs = 0},
+        handler = function(_, args) return WarpsCommand(args) end
+    }, {
+        name = "claim",
+        command = "/claim ",
+        tabID = 1,
+        usage = "IGUI_APTweaks_ClaimCommandUsage",
+        requires = {safehouseSystem = true, maxArgs = 0, minArgs = 0},
+        handler = function(player, args) return ClaimCommand(player, args) end
+    }, {
+        name = "something",
+        command = "/something ",
+        tabID = 1,
+        usage = "",
+        requires = {admin = true, maxArgs = 0, minArgs = 0},
+        handler = function(_, _) return {command = "something", data = {}} end
+    }
 }
 
 -- Registrar los comandos en la clase Lua ISChat.
