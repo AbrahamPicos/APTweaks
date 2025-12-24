@@ -12,10 +12,11 @@ local modID = aptweaks.modID
 local client_flags = aptweaks.client_flags
 local legacy_functions = aptweaks.legacy_functions
 
-local APTweaksCommand = chatCommands.APTweaksCommand
 local WarpCommand = chatCommands.WarpCommand
 local WarpsCommand = chatCommands.WarpsCommand
 local ClaimCommand = chatCommands.ClaimCommand
+local APTweaksSafezoneCommand = chatCommands.APTweaksSafezoneCommand
+local APTweaksWarpCommand = chatCommands.APTweaksWarpCommand
 local ProcessCommandResult = aptweaks.ProcessCommandResult
 
 local ISChat = aptweaks.ISChat
@@ -33,6 +34,22 @@ legacy_functions.updateChatPrefixSettings = legacy_functions.updateChatPrefixSet
 local luautils = aptweaks.luautils
 local APTweaksVars = aptweaks.APTweaksVars
 
+-- Valida si se cumplen los requerimientos para la ejecución de un comando de APTweaks.
+-- Se usa un mensaje genéroco para simular que el comandono existe.
+---@param player table El IsoPlayer asociado al cliente.
+---@param commandData table
+---@return table|nil result Devuelve un mensaje si no pasó la validación, de lo contrario no devuelve nada.
+local function checkCommandFromAPTwekas(player, commandData)
+    local requires = commandData.requires or {}
+
+    -- Validar personaje, permisos, y disponibilidad de sistemas.
+    return (not player:isAlive()
+        or (requires.admin and not (isCoopHost() or isAdmin()))
+        or (requires.teleportSystem and not APTweaksVars.TeleportSystemEnabled)
+        or (requires.safehouseSystem and not APTweaksVars.SafehouseSystemEnabled))
+        and ("Unknown command " .. commandData.name) or nil
+end
+
 local aptweaks_commands = {}
 local aptweaks_streams = {
 
@@ -40,36 +57,62 @@ local aptweaks_streams = {
         name = "aptweaks",
         command = "/aptweaks ",
         tabID = 1,
-        usage = "",
-        requires = {admin = true, maxArgs = 3, minArgs = 1},
-        handler = function(player, args) return APTweaksCommand(player, args) end
+        argc = {min = 1, max = 3},
+        usage = "IGUI_APTweaks_MainCommandUsage",
+        requires = {admin = true},
+        subcommands = {
+            cleardata = {
+                argc = {max = 1},
+                usage = "IGUI_APTweaks_MainCommandUsage",
+                handler = function(_, _) return {command = "ClearData", data = {}} end
+            },
+            safezone = {
+                argc = {max = 2},
+                usage = "IGUI_APTweaks_MainCommandUsage_Safezone",
+                handler = function(player, args) return APTweaksSafezoneCommand(player, args[2]) end
+            },
+            warp = {
+                argc = {max = 3},
+                usage = "IGUI_APTweaks_MainCommandUsage_Warp",
+                handler = function(player, args) return APTweaksWarpCommand(player, args[2], args[3]) end
+            }}
     }, {
         name = "warp",
         command = "/warp ",
         tabID = 1,
-        usage = "",
-        requires = {teleportSystem = true, maxArgs = 1, minArgs = 1},
+        argc = {min = 1, max =1},
+        usage = "IGUI_APTweaks_WarpCommandUsage",
+        requires = {
+            teleportSystem = true,
+            checker = function (player, commandData) checkCommandFromAPTwekas(player, commandData) end
+        },
         handler = function(player, args) return WarpCommand(player, args) end
     }, {
         name = "warps",
         command = "/warps ",
         tabID = 1,
         usage = "IGUI_APTweaks_WarpsCommandUsage",
-        requires = {teleportSystem = true, maxArgs = 0, minArgs = 0},
-        handler = function(_, args) return WarpsCommand(args) end
+        requires = {
+            teleportSystem = true,
+            checker = function (player, commandData) checkCommandFromAPTwekas(player, commandData) end
+        },
+        handler = function(_, _) return WarpsCommand() end
     }, {
         name = "claim",
         command = "/claim ",
         tabID = 1,
         usage = "IGUI_APTweaks_ClaimCommandUsage",
-        requires = {safehouseSystem = true, maxArgs = 0, minArgs = 0},
-        handler = function(player, args) return ClaimCommand(player, args) end
+        requires = {
+            safehouseSystem = true,
+            checker = function (player, commandData) checkCommandFromAPTwekas(player, commandData) end
+        },
+        handler = function(player, _) return ClaimCommand(player) end
     }, {
         name = "something",
         command = "/something ",
         tabID = 1,
-        usage = "",
-        requires = {admin = true, maxArgs = 0, minArgs = 0},
+        usage = "IGUI_APTweaks_SomethingCommandUsage",
+        requires = {admin = true},
         handler = function(_, _) return {command = "something", data = {}} end
     }
 }
@@ -94,15 +137,57 @@ for _, command in ipairs(aptweaks_streams) do
     aptweaks_commands[command.name] = command
 end
 
--- Valida si se cumplen los requerimientos para la ejecución de un comando.
+-- Valida si se cumplen los requerimientos para la ejecución de un comando de APTweaks.
+-- Se usa un mensaje genéroco para simular que el comandono existe.
 ---@param player table El IsoPlayer asociado al cliente.
----@param requires table Los requerimientos del comando.
----@return boolean isValidated Si el comando deberia poder ejecutarse.
-local function checkRequires(player, requires)
-    return player and player:isAlive()
-       and (not requires.admin or isCoopHost() or isAdmin())
-       and (not requires.teleportSystem or APTweaksVars.TeleportSystemEnabled)
-       and (not requires.safehouseSystem or APTweaksVars.SafehouseSystemEnabled)
+---@param commandData table
+---@return table|nil result Devuelve un mensaje si no pasó la validación, de lo contrario no devuelve nada.
+local function  checkAPTweaksCommand(player, commandData)
+    local requires = commandData.requires or {}
+
+    -- Validar personaje, permisos, y disponibilidad de sistemas.
+    return (not player:isAlive()
+        or (requires.admin and not (isCoopHost() or isAdmin()))
+        or (requires.teleportSystem and not APTweaksVars.TeleportSystemEnabled)
+        or (requires.safehouseSystem and not APTweaksVars.SafehouseSystemEnabled))
+        and ("Unknown command " .. commandData.name) or nil
+end
+
+local function checkCommandRequires(player, command, args)
+    -- Comprobar los requerimientos específicos del comando.
+    local commandData = aptweaks_commands[command] -- Esto nunca es nil.
+    local failMessage = getFailMessage(player, commandData)
+
+    if failMessage then return failMessage end
+
+    -- Validar si cumple con el número mínimo de argumentos.
+    local argsRange = commandData.argc or {min = 0, max = 0}
+    local argc = #args
+
+    if argc < argsRange.min then
+        return {text = string.format(getText("IGUI_APTweaks_Chat_FewArgs"), getText(commandData.usage))}
+    end
+
+    -- Comprobar si debe haber un subcomando.
+    local subcommands = commandData.subcommands
+
+    if subcommands then
+        local subcommandData = commandData.subcommands[args[1]]
+
+        -- Si el subcomando no es válido, terminar.
+        if not subcommandData then
+            return {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText(commandData.usage))}
+        end
+
+        commandData = subcommandData
+    end
+
+    if argc > argsRange.max then
+        return {text = string.format(getText("IGUI_APTweaks_Chat_ManyArgs"), getText(commandData.usage))}
+    end
+
+    -- Obtener handler
+    local handler = commandData.handler
 end
 
 local function ProcessAPTweaksCommand(player, command, argsString)
@@ -113,14 +198,93 @@ local function ProcessAPTweaksCommand(player, command, argsString)
         table.insert(args, arg)
     end
 
-    -- Comprobar los requerimientos del comando.
-    local commandData = aptweaks_commands[command]
-    local isValidated = checkRequires(player, commandData.requires)
+    checkCommandRequires(player, command, args)
 
-    -- Ejecutar si validado, si no devolver mensaje genérico.
-    local result = (isValidated and commandData.handler(player, args))
-                or {text = "Unknown command " .. command}
+    -- Comprobar los requerimientos específicos del comando.
+    local commandData = aptweaks_commands[command] -- Esto nunca es nil.
+    local result = getFailMessage(player, commandData)
 
+    if not result then
+        -- Validar si cumple con el número mínimo de argumentos.
+        local argsRange = commandData.argc or {min = 0, max = 0}
+        local argc = #args
+
+        if argc < argsRange.min then
+            result = {text = string.format(getText("IGUI_APTweaks_Chat_FewArgs"), getText(commandData.usage))}
+        end
+
+        -- Comprobar si debe haber un subcomando.
+        local subcommands = commandData.subcommands
+
+        if subcommands then
+            local subcommandData = commandData.subcommands[args[1]]
+
+            -- Si el subcomando no es válido, terminar.
+            if not subcommandData then
+                result = {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText(commandData.usage))}
+            end
+
+            commandData = subcommandData
+        end
+
+        elseif argc > argsRange.max then
+            result = {text = string.format(getText("IGUI_APTweaks_Chat_ManyArgs"), getText(commandData.usage))}
+        end
+
+        -- Obtener handler
+        local handler = commandData.handler
+    end
+end
+    -- Validar argumentos.
+    local argsRange = commandData.argc or {min = 0, max = 0}
+    local argc = #args
+
+    -- Validar argumentos.
+    if argc < argsRange.min then
+        result = {text = string.format(getText("IGUI_APTweaks_Chat_FewArgs"), getText(commandData.usage))}
+
+    elseif argc > argsRange.max then
+        result = {text = string.format(getText("IGUI_APTweaks_Chat_ManyArgs"), getText(commandData.usage))}
+    end
+
+    -- Comprobar si hay un subcomando y obtener handler.
+    local subcommandData = commandData.subcommands[args[1]]
+    local handler = commandData.handler
+
+    if not handler then
+
+        if not subcommandData then
+            result = {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText(subcommandData.usage))}
+        end
+
+        handler = subcommandData.handler
+    end
+
+
+
+    if not handler then
+        local subcommandData = commandData.subcommands[args[1]]
+
+        -- Si el subcomando no es válido, terminar.
+        if not subcommandData then
+            result = {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText(subcommandData.usage))}
+        end
+
+        -- Comprobar si hay suficientes argumentos para el subcomando.
+        if argc ~= subcommandData.argc then
+            result = {text = string.format(getText("IGUI_APTweaks_Chat_FewArgs"), getText(subcommandData.usage))}
+        end
+
+        handler = subcommandData.handler
+    end
+
+    -- Validar requerimientos específicos del proveedor y manejar.
+    if not result then
+        result = getFailMessage(player, commandData) or handler(player, args)
+        or {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText(subcommandData.usage))}
+    end
+
+    -- Procesar resultado
     ProcessCommandResult(player, result)
 end
 
@@ -186,7 +350,7 @@ local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
     for i = previousStreamIndex + 1, maxIndex do
         local aptweaksCommand = aptweaks_commands[allChatStreams[i].name]
 
-        if aptweaksCommand and checkRequires(client_flags.player, aptweaksCommand.requires) then
+        if aptweaksCommand and not getFailMessage(client_flags.player, aptweaksCommand) then
             curTxtPanel.streamID = i
             ISChat.instance.textEntry:setText(aptweaksCommand.command)
             return

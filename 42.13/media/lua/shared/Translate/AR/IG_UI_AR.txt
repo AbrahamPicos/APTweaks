@@ -2,12 +2,10 @@
 
 IG_UI_AR = {
 
-    IGUI_APTweaks_ListSeparator = ", ",
-    IGUI_APTweaks_ListSeparator_Final = ", y ",
-    IGUI_APTweaks_AviableWarps = "Los warps disponibles son %s",    
+    IGUI_APTweaks_AviableWarps = "Los warps disponibles son: %s",    
     IGUI_APTweaks_MainCommandUsage = "/aptweaks [cleardata|safezone|warp]",
-    IGUI_APTweaks_MainCommandUsage_Safezone = "/aptweaks [pos1|pos2|add|remove|prune]",
-    IGUI_APTweaks_MainCommandUsage_Warp = "/aptweaks [add|remove]",
+    IGUI_APTweaks_MainCommandUsage_Safezone = "/aptweaks safezone [pos1|pos2|add|remove|prune]",
+    IGUI_APTweaks_MainCommandUsage_Warp = "/aptweaks warp [add|remove] <warp>",
     IGUI_APTweaks_ClaimCommandUsage = "/claim",
     IGUI_APTweaks_SomethingCommandUsage = "/something",
     IGUI_APTweaks_WarpCommandUsage = "/warp <warp>",
@@ -23,7 +21,7 @@ IG_UI_AR = {
     IGUI_APTweaks_Chat_ManyArgs = "<RGB:1,0,0>Demasiados argumentos. Use %s.",
     IGUI_APTweaks_Chat_IncorrectUse = "<RGB:1,0,0>Uso incorrecto. Use %s.",
     IGUI_APTweaks_Chat_TeleportBegins = "<RGB:0,1,0>Teletransportando a %s...",
-    IGUI_APTweaks_Chat_MissingWarp = "<RGB:1,0,0>Warp %s no encontrado. %s.",
+    IGUI_APTweaks_Chat_MissingWarp = "<RGB:1,0,0>Warp %s no encontrado. Los warps disponibles son: %s",
     IGUI_APTweaks_Chat_VertexDefined = "<RGB:0,1,0>La posición del vértice <RGB:0,0,1><SPACE>%s <RGB:0,1,0><SPACE>del área se definió en <RGB:0,1,0><SPACE>%d,%d<RGB:0,1,0><SPACE>.",
     IGUI_APTweaks_Chat_VertexNeeded = "<RGB:1,0,0>Primero debe definir el área con <RGB:0,0,1><SPACE>/pos1 <RGB:1,0,0><SPACE>y <RGB:0,0,1><SPACE>/pos2.",
 
