@@ -4,28 +4,27 @@ Sandbox_AR = {
 
 	Sandbox_APTweaks = "APTweaks",
 
+	Sandbox_APTweaks_CoopServerMode = "Modo de servidor cooperativo",
+	Sandbox_APTweaks_CoopServerMode_tooltip = "Si APTweaks necesita ejecutarse en un servidor cooperativo (no recomendado).",
+
 	Sandbox_APTweaks_TeleportSystemEnabled = "Sistema de teletransporte",
-	Sandbox_APTweaks_TeleportSystemEnabled_tooltip = "Si se usará el sistema de teletransporte de APTweaks.",
+	Sandbox_APTweaks_TeleportSystemEnabled_tooltip = "Si el sistema de teletransporte de APTweaks estará habilitado.",
 
 	Sandbox_APTweaks_AfkSystemEnabled = "Sistema AFK",
-	Sandbox_APTweaks_AfkSystemEnabled_tooltip = "Si se usará el sistema anti-AFK de APTweaks.",
+	Sandbox_APTweaks_AfkSystemEnabled_tooltip = "Si el sistema anti-AFK de APTweaks estará habilitado.",
 
 	Sandbox_APTweaks_SafehouseSystemEnabled = "Sistema de refugios sin edificios",
-	Sandbox_APTweaks_SafehouseSystemEnabled_tooltip = "Si se usará el sistema de refugios sin edificios de APTweaks.",
-
-	Sandbox_APTweaks_AnticheatSystemEnabled = "Sistema anticheat",
-	Sandbox_APTweaks_AnticheatSystemEnabled_tooltip = "Si se usará el sistema anticheat de APTweaks.",
+	Sandbox_APTweaks_SafehouseSystemEnabled_tooltip = "Si el sistema de refugios sin edificios de APTweaks estará habilitado.",
 
 	Sandbox_APTweaks_TeleportDelay = "Retraso de teletransporte",
-	Sandbox_APTweaks_TeleportDelay_tooltip = "Los segundos que el jugador debe permanecer quieto para ser teletransportado.",
+	Sandbox_APTweaks_TeleportDelay_tooltip = "La cantidad de segundos que un jugador debe permanecer quieto antes de ser teletransportado.",
 
 	Sandbox_APTweaks_TeleportCooldown = "Enfriamiento de teletransporte",
-	Sandbox_APTweaks_TeleportCooldown_tooltip = "Los segundos que el jugador debe esperar antes de poder teletransportarse nuevamente.",
+	Sandbox_APTweaks_TeleportCooldown_tooltip = "La cantidad de segundos que un jugador debe esperar antes de poder teletransportarse nuevamente.",
 
 	Sandbox_APTweaks_AfkStart = "Inicio de AFK",
-	Sandbox_APTweaks_AfkStart_tooltip = "Los segundos que el jugador debe permanecer quieto para considerarse AFK.",
+	Sandbox_APTweaks_AfkStart_tooltip = "La cantidad de segundos que un jugador debe permanecer inactivo antes de ser considerado AFK.",
 
 	Sandbox_APTweaks_AfkKick = "Expulsión en AFK",
-	Sandbox_APTweaks_AfkKick_tooltip = "Los segundos que el jugador debe permanecer quieto luego de considerarse AFK para ser expulsado del servidor."
+	Sandbox_APTweaks_AfkKick_tooltip = "La cantidad de segundos que un jugador debe permanecer inactivo después de ser considerado AFK antes de ser expulsado del servidor."
 }
-

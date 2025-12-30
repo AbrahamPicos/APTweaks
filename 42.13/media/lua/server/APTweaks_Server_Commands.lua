@@ -6,17 +6,20 @@ local aptweaks, commands = require("APTweaks"), {}
 
 local aptweaks_temp = aptweaks.aptweaks_temp
 
+local SetupData = aptweaks.SetupData
 local isTableEmpty = aptweaks.isTableEmpty
 
 local ModData = aptweaks.ModData
 local SafeHouse = aptweaks.SafeHouse
 local getServerOptions = aptweaks.getServerOptions
 
+local APTweaksVars = aptweaks.APTweaksVars
+
 -- La instancia de la clase ServerOptions de la sesión actual.
 -- Se usa para alterar la configuración del servidor en tiempo de ejecución.
 local serverOptions = getServerOptions()
 
--- Función auxiliar de commands.SafezoneCommand: Obtiener las celdas que comprenden un area.
+-- Obtiene las celdas que comprenden un area.
 ---@param x1 number
 ---@param x2 number
 ---@param y1 number
@@ -39,34 +42,11 @@ local function getAreaCells(x1, x2, y1, y2)
     return areaCells
 end
 
--- Función auxiliar de commands.SafezoneCommand: buscar área.
----@param x number
----@param y number
----@param data table
----@return table|nil area
-local function findTargetArea(x, y, data)
-    local cellID = math.floor(x / 300) .. math.floor(y / 300)
-    local cellAreas = data.cells[cellID]
-
-    if cellAreas then
-
-        for i = 1, #cellAreas do
-            local area = data.areas[cellAreas[i]]
-
-            if area and x >= area.x1 and x <= area.x2 and y >= area.y1 and y <= area.y2 then
-                return area
-            end
-        end
-    end
-
-    return nil
-end
-
--- Función auxiliar de commands.SafezoneCommand: añadir área.
----@param args table
----@param data table
+-- Indeaxa un área en una cuadricula espacial en un mapa en con el formato de APTweaks.
+---@param args table Los argumentos del comando.
+---@param data table El mapa de datos en el que se indexará el área.
 ---@return table result
-local function handleAdd(args, data) -- args = {x1 = pos1.x, y1 = pos1.y, x2 = pos2.x, y2 = pos2.y}
+local function addSafezoneCommand(args, data) -- args = {x1 = pos1.x, y1 = pos1.y, x2 = pos2.x, y2 = pos2.y}
     local x1, y1, x2, y2 = args.x1, args.y1, args.x2, args.y2
 
     -- Validación de coordenadas
@@ -121,12 +101,38 @@ local function handleAdd(args, data) -- args = {x1 = pos1.x, y1 = pos1.y, x2 = p
     return {text = string.format("El area %s fue indexada correctamente", areaID)}
 end
 
--- Función auxiliar de commands.SafezoneCommand: remover área.
----comment
----@param targetArea table
----@param data table
+-- Reclama un área como una safehouse para un cliente.
+---@param player table El IsoPlayer asociado al cliente que hizó la solicitud. 
+---@param targetArea table El área que está intentando reclamar.
 ---@return table result
-local function handleRemove(targetArea, data)
+local function claimSafezoneCommand(player, targetArea)
+    local areaID = targetArea.x1 .. "," .. targetArea.y1
+
+    -- Verificar bloqueo
+    for _, blockedID in pairs(aptweaks_temp.blocked) do
+
+        if blockedID == areaID then
+            return {text = "Alguien más está intentando reclamar esa área. Intente más tarde."}
+        end
+    end
+
+    -- Verificar safehouse existente
+    local x1, y1, x2, y2 = targetArea.x1, targetArea.y1, targetArea.x2, targetArea.y2
+
+    if SafeHouse.getSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1) then
+        return {text = "El área ya está reclamada."}
+    end
+
+    -- Bloquear y proceder
+    aptweaks_temp.blocked[player:getUsername()] = areaID
+    return {command = "CreateSafehouseCommand", data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}}
+end
+
+-- Remueve un área del mapa de datos de APTweaks,
+---@param targetArea table El área que se eliminará.
+---@param data table El mapa de datos del que se eliminará el área.
+---@return table result
+local function removeSafezoneCommand(targetArea, data)
     local areaID = targetArea.x1 .. "," .. targetArea.y1
     local areaCells = getAreaCells(targetArea.x1, targetArea.x2, targetArea.y1, targetArea.y2)
 
@@ -151,41 +157,17 @@ local function handleRemove(targetArea, data)
     return {text = string.format("El área %s fue removida exitosamente.", areaID)}
 end
 
--- Función auxiliar de commands.SafezoneCommand: reclamar área.
-local function handleClaim(player, targetArea)
-    local areaID = targetArea.x1 .. "," .. targetArea.y1
-
-    -- Verificar bloqueo
-    for _, blockedID in pairs(aptweaks_temp.blocked) do
-
-        if blockedID == areaID then
-            return {text = "Alguien más está intentando reclamar esa área. Intente más tarde."}
-        end
-    end
-
-    -- Verificar safehouse existente
-    local x1, y1, x2, y2 = targetArea.x1, targetArea.y1, targetArea.x2, targetArea.y2
-
-    if SafeHouse.getSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1) then
-        return {text = "El área ya está reclamada."}
-    end
-
-    -- Bloquear y proceder
-    aptweaks_temp.blocked[player:getUsername()] = areaID
-    return {command = "CreateSafehouseCommand", data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}}
-end
-
 -- La parte de la lógica del sistema de safehouses sin edificios procesada del lado del servidor.
 ---@param player table Un IsoPlayer.
 ---@param args table 
----@return table result
+---@return table|nil result
 function commands.SafezoneCommand(player, args)
 
     -- Validar permisos.
     local requireAdmin = {add = true, remove = true, claim = false}
     local action = args.action
 
-    if requireAdmin[action] and player:getAccessLevel() ~= "admin" then
+    if not APTweaksVars.CoopServerMode and (requireAdmin[action] and player:getAccessLevel() ~= "admin") then
         return {text = "No tienes permitido realizar esa acción."}
     end
 
@@ -193,11 +175,26 @@ function commands.SafezoneCommand(player, args)
     local data = aptweaks.aptweaks_data
 
     if action == "add" then
-        return handleAdd(args, data)
+        return addSafezoneCommand(args, data)
     end
 
     -- De lo contrario, buscar área objetivo.
-    local targetArea = findTargetArea(args.x, args.y, aptweaks.aptweaks_data)
+    local x, y = args.x, args.y
+    local cellID = math.floor(x / 300) .. math.floor(y / 300)
+    local cellAreas = data.cells[cellID]
+    local targetArea
+
+    if cellAreas then
+
+        for i = 1, #cellAreas do
+            local area = data.areas[cellAreas[i]]
+
+            if area and x >= area.x1 and x <= area.x2 and y >= area.y1 and y <= area.y2 then
+                targetArea = area
+                break
+            end
+        end
+    end
 
     if not targetArea then
         return {text = "Debe estar en un área reclamable."}
@@ -205,18 +202,19 @@ function commands.SafezoneCommand(player, args)
 
     -- Reclamar o remover área.
     if action == "claim" then
-        return handleClaim(player, targetArea)
+        return claimSafezoneCommand(player, targetArea)
 
     elseif action == "remove" then
-        return handleRemove(targetArea, data)
-
-    else
-        return {text = "Debe proporcionar una acción válida."}
+        return removeSafezoneCommand(targetArea, data)
     end
 end
 
 -- Esto tiene problemas, pues si otro mod, -o el administrador-, cambia la configuración del anticheat en producción será
 --- gravemente inconsistente.
+---comment
+---@param player any
+---@param args any
+---@return table result
 function commands.TeleportCommand(player, args)
 
     -- Si es una solicitud desactiva el anticheat, de lo contrario verifica si su nombre estaba en la lista y lo elimina.
@@ -273,6 +271,14 @@ function commands.WarpCommand(args) -- data = {action = action, name = warp, loc
             return {text = string.format("El warp %s no existe.", warp)}
         end
     end
+end
+
+-- Reinicia el mapa de datos de APTweaks a sus valores predeterminados.
+function commands.ClearDataCommand()
+    SetupData(true)
+    ModData.transmit("aptweaks")
+
+    return {text = "Todos los datos de APTweaks han sido eliminados."}
 end
 
 return commands

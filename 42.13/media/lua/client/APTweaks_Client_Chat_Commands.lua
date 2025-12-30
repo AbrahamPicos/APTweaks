@@ -46,9 +46,6 @@ function chatCommands.APTweaksWarpCommand(player, action, warp)
 
     elseif action == "remove" then
         data = {action = action, name = warp}
-
-    else
-        return {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText("IGUI_APTweaks_MainCommandUsage_Warp"))}
     end
 
     return {command = "WarpCommand", data = data}
@@ -57,7 +54,7 @@ end
 -- El comando `/aptweaks safezone add|remove`.
 ---@param player table Un IsoPlayer.
 ---@param action string La acción que el comando realizará.
----@return table result Una tabla con la respuesta. Un texto, y un comando con sus argumentos según se requiera.
+---@return table|nil result Una tabla con la respuesta. Un texto, y un comando con sus argumentos según se requiera.
 function chatCommands.APTweaksSafezoneCommand(player, action)
     local data
 
@@ -83,9 +80,6 @@ function chatCommands.APTweaksSafezoneCommand(player, action)
 
     elseif action == "remove" then
         data = {action = action, x = x, y = y}
-
-    else
-        return {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText("IGUI_APTweaks_MainCommandUsage_Safezone"))}
     end
 
     return {command = "SafezoneCommand", data = data}

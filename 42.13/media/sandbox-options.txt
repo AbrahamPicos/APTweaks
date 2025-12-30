@@ -1,5 +1,14 @@
 VERSION = 1,
 
+option APTweaks.CoopServerMode
+{
+    type = boolean,
+    default = false,
+
+    page = APTweaks,
+    translation = Sandbox_APTweaks_CoopServerMode,
+}
+
 option APTweaks.TeleportSystemEnabled
 {
     type = boolean,
@@ -25,15 +34,6 @@ option APTweaks.SafehouseSystemEnabled
 
     page = APTweaks,
     translation = APTweaks_SafehouseSystemEnabled,
-}
-
-option APTweaks.AnticheatSystemEnabled
-{
-    type = boolean,
-    default = false,
-
-    page = APTweaks,
-    translation = APTweaks_AnticheatSystemEnabled,
 }
 
 option APTweaks.TeleportDelay
