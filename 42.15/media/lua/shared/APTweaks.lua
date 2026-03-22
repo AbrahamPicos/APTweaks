@@ -27,10 +27,13 @@ local aptweaks = {
     getCore = getCore,
     getText = getText,
     isAdmin = isAdmin,
+    addRole = addRole,
+    getRoles = getRoles,
     writeLog = writeLog,
     isClient = isClient,
     isServer = isServer,
     getPlayer = getPlayer,
+    setupRole = setupRole,
     isCoopHost = isCoopHost,
     doKeyPress = doKeyPress,
     triggerEvent = triggerEvent,
@@ -52,21 +55,35 @@ local isServer = aptweaks.isServer
 local sendClientCommand = aptweaks.sendClientCommand
 local sendServerCommand = aptweaks.sendServerCommand
 
-local aptweaks_data
 local modID = aptweaks.modID
 local aptweaks_temp = aptweaks.aptweaks_temp
 
 -- Inicializar timers.
 aptweaks_temp.timers = {}
 
+-- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).
+---@param t table La tabla que se verificará. Cualquier cosa que no sea una tabla se conciderará vacía.
+---@return boolean isEmpty Si la tabla estaba vacía.
+function aptweaks.isTableEmpty(t)
+
+    if type(t) ~= "table" then return true end
+
+    for _ in pairs(t) do
+        return false
+    end
+
+    return true
+end
+
 -- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
 ---@param reset boolean Si el mapa debe restablecerse, lo que borrará todos los datos.
 function aptweaks.SetupData(reset)
     -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
-    aptweaks_data = ModData.getOrCreate("aptweaks")
+    local aptweaks_data = ModData.getOrCreate("aptweaks")
+
     aptweaks.aptweaks_data = aptweaks_data
 
-    if not aptweaks.isTableEmpty(aptweaks_data) or not reset then return end
+    if not aptweaks.isTableEmpty(aptweaks_data) and not reset then return end
 
     -- La versión de la estructura de datos. Se usará para saber si debe actualizarse cuando se actualiza el mod.
     aptweaks_data.dataversion = 1
@@ -108,62 +125,26 @@ end
 -- Procesa la respuesta de todos los comandos de APTweaks cuando son usados a travez de APTweaks.
 ---@param player table Un objeto IsoPlayer.
 ---@param result table La tabla con el resultado del comando.
-function aptweaks.processCommandResult(player, result)
+---@param provider string El proovedor de comando. Se usa para enviar comandos.
+function aptweaks.processCommandResult(player, result, provider)
 
     local data = result.data or result
     local commandName = result.command or "MessageCommand"
 
     if isServer() then
-        sendServerCommand(player, modID, commandName, data)
+        sendServerCommand(player, provider, commandName, data)
 
     elseif isClient() then
 
         if commandName == "MessageCommand" then
             local ISChat = aptweaks.ISChat
 
-            ISChat.addLineInChat(getFakeChatMessage(ISChat.instance.chatFont, result.text, "APTweaks", false), 0)
+            ISChat.addLineInChat(getFakeChatMessage(ISChat.instance.chatFont, data.text, provider, false), 0)
 
         else
-            sendClientCommand(player, modID, commandName, data)
+            sendClientCommand(player, provider, commandName, data)
         end
     end
-end
-
--- Obtiene las celdas que comprenden un area. Basándose en las mediadas de la cuadrícula espacial de Project Zomboid.
----@param x1 number
----@param x2 number
----@param y1 number
----@param y2 number
----@return table areaCells
-function aptweaks.getAreaCells(x1, x2, y1, y2)
-    local cx1, cy1 = math.floor(x1 / 300), math.floor(y1 / 300)
-    local cx2, cy2 = math.floor(x2 / 300), math.floor(y2 / 300)
-    local areaCells = {}
-
-    for cx = cx1, cx2 do
-
-        for cy = cy1, cy2 do
-            local cellID = cx .. "," .. cy
-
-            areaCells[cellID] = true
-        end
-    end
-
-    return areaCells
-end
-
--- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).
----@param t table La tabla que se verificará. Cualquier cosa que no sea una tabla se conciderará vacía.
----@return boolean isEmpty Si la tabla estaba vacía.
-function aptweaks.isTableEmpty(t)
-
-    if type(t) ~= "table" then return true end
-
-    for _ in pairs(t) do
-        return false
-    end
-
-    return true
 end
 
 -- Establece o respablece un timer.

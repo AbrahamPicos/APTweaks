@@ -1,0 +1,31 @@
+{
+    "IGUI_APTweaks_AviableWarps": "Los warps disponibles son: %1",
+    "IGUI_APTweaks_MainCommandUsage": "/aptweaks [cleardata|safezone|warp]",
+    "IGUI_APTweaks_MainCommandUsage_Safezone": "/aptweaks safezone [pos1|pos2|add|remove|prune]",
+    "IGUI_APTweaks_MainCommandUsage_Warp": "/aptweaks warp [add|remove] <warp>",
+    "IGUI_APTweaks_ClaimCommandUsage": "/claim",
+    "IGUI_APTweaks_SomethingCommandUsage": "/something",
+    "IGUI_APTweaks_WarpCommandUsage": "/warp <warp>",
+    "IGUI_APTweaks_WarpsCommandUsage": "/warps",
+
+    "IGUI_APTweaks_Chat_DeathMessage": "<RGB:0,1,0>%1 ha muerto.",
+    "IGUI_APTweaks_Chat_WellcomeMessage": "<RGB:0,1,0>%1 se ha unido.",
+    "IGUI_APTweaks_Chat_FarewellMessage": "<RGB:0,1,0>%1 se ha ido.",
+    "IGUI_APTweaks_Chat_CommandCooldown": "<RGB:1,0,0>Debe esperar %1 segundos antes de ejecutar ese comando nuevamente.",
+    "IGUI_APTweaks_Chat_MovingExecutionForbidden": "<RGB:1,0,0>No puede ejecutar ese comando mientras se mueve.",
+    "IGUI_APTweaks_Chat_RidingExecutionForbidden": "<RGB:1,0,0>No puede ejecutar ese comando dentro de un vehículo.",
+    "IGUI_APTweaks_Chat_AlreadyExecuting": "<RGB:1,0,0>El comando ya se está ejecutando.",
+    "IGUI_APTweaks_Chat_FewArgs": "<RGB:1,0,0>Argumentos faltantes. Use %1.",
+    "IGUI_APTweaks_Chat_ManyArgs": "<RGB:1,0,0>Demasiados argumentos. Use %1.",
+    "IGUI_APTweaks_Chat_IncorrectUse": "<RGB:1,0,0>Uso incorrecto. Use %1.",
+    "IGUI_APTweaks_Chat_TeleportBegins": "<RGB:0,1,0>Teletransportando a %1...",
+    "IGUI_APTweaks_Chat_MissingWarp": "<RGB:1,0,0>Warp %1 no encontrado. Los warps disponibles son: %2",
+    "IGUI_APTweaks_Chat_VertexDefined": "<RGB:0,1,0>La posición del vértice <RGB:0,0,1><SPACE>%1 <RGB:0,1,0><SPACE>del área se definió en <RGB:0,1,0><SPACE>%2,%3<RGB:0,1,0><SPACE>.",
+    "IGUI_APTweaks_Chat_VertexNeeded": "<RGB:1,0,0>Primero debe definir el área con <RGB:0,0,1><SPACE>/pos1 <RGB:1,0,0><SPACE>y <RGB:0,0,1><SPACE>/pos2.",
+
+    "IGUI_APTweaks_HaloNote_Afk": "Ahora estás AFK.",
+    "IGUI_APTweaks_HaloNote_AfkRemoved": "Ya no estás AFK.",
+    "IGUI_APTweaks_HaloNote_TeleportCancelled": "Teletransportación cancelada.",
+    "IGUI_APTweaks_HaloNote_TeleportDelaying": "Teletransportando. %1...",
+    "IGUI_APTweaks_HaloNote_TeleportSuccess": "Teletransportado a %1."
+}

@@ -7,19 +7,22 @@ local aptweaks, commands = require("APTweaks"), {}
 local aptweaks_temp = aptweaks.aptweaks_temp
 
 local SetupData = aptweaks.SetupData
-local isTableEmpty = aptweaks.isTableEmpty
 
 local ModData = aptweaks.ModData
+local addRole = aptweaks.addRole
+local getRoles =  aptweaks.getRoles
+local setupRole = aptweaks.setupRole
 local SafeHouse = aptweaks.SafeHouse
-local getServerOptions = aptweaks.getServerOptions
+--local getServerOptions = aptweaks.getServerOption
 
 local APTweaksVars = aptweaks.APTweaksVars
 
 -- La instancia de la clase ServerOptions de la sesión actual.
 -- Se usa para alterar la configuración del servidor en tiempo de ejecución.
-local serverOptions = getServerOptions()
+--local serverOptions = getServerOptions()
 
 -- Obtiene las celdas que comprenden un area.
+-- Basándose en las mediadas de la cuadrícula espacial de Project Zomboid.
 ---@param x1 number
 ---@param x2 number
 ---@param y1 number
@@ -94,6 +97,7 @@ local function addSafezoneCommand(args, data) -- args = {x1 = pos1.x, y1 = pos1.
         if not data.cells[cellID] then
             data.cells[cellID] = {}
         end
+
         table.insert(data.cells[cellID], areaID)
         ModData.transmit("aptweaks")
     end
@@ -106,16 +110,6 @@ end
 ---@param targetArea table El área que está intentando reclamar.
 ---@return table result
 local function claimSafezoneCommand(player, targetArea)
-    local areaID = targetArea.x1 .. "," .. targetArea.y1
-
-    -- Verificar bloqueo
-    for _, blockedID in pairs(aptweaks_temp.blocked) do
-
-        if blockedID == areaID then
-            return {text = "Alguien más está intentando reclamar esa área. Intente más tarde."}
-        end
-    end
-
     -- Verificar safehouse existente
     local x1, y1, x2, y2 = targetArea.x1, targetArea.y1, targetArea.x2, targetArea.y2
 
@@ -123,8 +117,19 @@ local function claimSafezoneCommand(player, targetArea)
         return {text = "El área ya está reclamada."}
     end
 
+    -- Verificar bloqueo
+    local areaID = targetArea.x1 .. "," .. targetArea.y1
+
+    for _, blockedID in pairs(aptweaks_temp.blocked) do
+
+        if blockedID == areaID then
+            return {text = "Alguien más está intentando reclamar esa área. Intente más tarde."}
+        end
+    end
+
     -- Bloquear y proceder
     aptweaks_temp.blocked[player:getUsername()] = areaID
+
     return {command = "CreateSafehouseCommand", data = {areaID = areaID, x1 = x1, y1 = y1, x2 = x2, y2 = y2}}
 end
 
@@ -178,7 +183,7 @@ function commands.SafezoneCommand(player, args)
         return addSafezoneCommand(args, data)
     end
 
-    -- De lo contrario, buscar área objetivo.
+    -- De lo contrario, buscar área objetivo para reclamar o remover.
     local x, y = args.x, args.y
     local cellID = math.floor(x / 300) .. math.floor(y / 300)
     local cellAreas = data.cells[cellID]
@@ -200,7 +205,6 @@ function commands.SafezoneCommand(player, args)
         return {text = "Debe estar en un área reclamable."}
     end
 
-    -- Reclamar o remover área.
     if action == "claim" then
         return claimSafezoneCommand(player, targetArea)
 
@@ -209,48 +213,72 @@ function commands.SafezoneCommand(player, args)
     end
 end
 
--- Esto tiene problemas, pues si otro mod, -o el administrador-, cambia la configuración del anticheat en producción será
---- gravemente inconsistente.
----comment
----@param player any
----@param args any
----@return table result
-function commands.TeleportCommand(player, args)
+-- eliminaré el rol cuando ya nadie lo use.
+---@param player table El jugador asociado al cliente.
+---@param args table
+---@return table|nil result
+function commands.TeleportCommand(player, args) -- args = {location = {x = x, y = y, z = z, name = name}, isRequest = isRequest}
 
-    -- Si es una solicitud desactiva el anticheat, de lo contrario verifica si su nombre estaba en la lista y lo elimina.
-    if args.isRequest then
-        local addPlayer = false
-
-        if serverOptions:getBoolean("AntiCheatProtectionType2") then
-            serverOptions:changeOption("AntiCheatProtectionType2", "false")
-            addPlayer = true
-        end
-
-        -- Si `addPlayer` es true significa que es el primer jugador en intentar teletransportarse.
-        -- Si `aptweaks_data.inTeleport` está vacía y addPlayer es false, significa que el anticheat ya estaba desactivado.
-        -- Si `aptweaks_data.inTeleport` no está vacía y addPlayer es false, significa que el mod desactivó el anticheat.
-        if addPlayer or isTableEmpty(aptweaks_temp.inTeleport) then
-            aptweaks_temp.inTeleport[player:getUsername()] = -1
-        end
-
-        return {command = "TeleportCommand", data = args}
-
-    else
-
-        if aptweaks_temp.inTeleport[player:getUsername()] then
-            aptweaks_temp.inTeleport[player:getUsername()] = nil
-        end
+    -- Si es una notificación, remover teletransporte 
+    if not args.isRequest then -- Aún no hace nada
+        return
     end
+
+    -- Verificar si el rol del usuario le permite teletransportarse. De lo contrario, crear nuevo rol y cambiarlo a él.
+    local playerRole = player:getRole()
+
+    if not playerRole:hasCapability(Capability.UseFastMoveCheat) then
+        local newRoleName = "APTweaks_Teleport" .. "_" .. player:getUsername() .. "_" .. playerRole:getId()
+        local capabilities = {}
+        local newRole
+
+        for i = 0, playerRole:getCapabilities():size() - 1 do
+            table.insert(capabilities, playerRole:getCapabilities().get(i))
+        end
+
+        table.insert(capabilities, Capability.UseFastMoveCheat)
+        addRole(newRoleName)
+
+        for i = 0, getRoles():size() - 1 do -- Es ridículo no tener un método getRole(string) para hacer esto.
+            local role = getRoles():get(i)
+
+            if role:getName() == newRoleName then
+                newRole = role
+                break
+            end
+        end
+
+        setupRole(newRole, "An APTweaks_Teleport temp role", playerRole:getColor(), capabilities)
+        player:setRole(newRole)
+    end
+
+    aptweaks_temp.inTeleport[player:getUsername()] = {location = args.location, role = playerRole}
+
+    return {command = "TeleportCommand", data = args}
 end
 
-function commands.WarpCommand(args) -- data = {action = action, name = warp, location = location}
+-- Añade o remueve un warp del mapa de datos del mod.
+-- args = {action = action, name = warp, location = {x = x, y = y, z = z}}
+---@param player table
+---@param args table
+---@return table|nil result
+function commands.WarpCommand(player, args)
     local aptweaks_data = aptweaks.aptweaks_data
-    local warp = args.warp
+    local warp = args.name
+
+    if player:getRole():getName() ~= "admin" and not APTweaksVars.CoopServerMode then return end
 
     if args.action == "add" then
+        local location = args.location
+        local x, y, z = location.x, location.y, location.z
+
+        if x < 0 or y < 0 or x > 19799 or y > 15899 then
+            -- Aún hay que encontrar una forma de comprobar si `z` es segura.
+            return {text = "No puede usar coordenadas fuera del mapa."}
+        end
 
         if not aptweaks_data.warps[warp] then
-            aptweaks_data.warps[warp] = args.location
+            aptweaks_data.warps[warp] = location
             ModData.transmit("aptweaks")
 
             return {text = string.format("warp %s añadido.", warp)}
@@ -259,13 +287,13 @@ function commands.WarpCommand(args) -- data = {action = action, name = warp, loc
             return {text = "Ese warp ya existe."}
         end
 
-    else
+    elseif args.action == "remove" then
 
         if aptweaks_data.warps[warp] then
             aptweaks_data.warps[warp] = nil
             ModData.transmit("aptweaks")
 
-            return {text = string.format("warp %s eliminado.", warp)}
+            return {text = string.format("Warp %s eliminado.", warp)}
 
         else
             return {text = string.format("El warp %s no existe.", warp)}
@@ -274,7 +302,11 @@ function commands.WarpCommand(args) -- data = {action = action, name = warp, loc
 end
 
 -- Reinicia el mapa de datos de APTweaks a sus valores predeterminados.
-function commands.ClearDataCommand()
+---@return table|nil result
+function commands.ClearDataCommand(player) -- args = {}
+
+    if player:getAccessLevel() ~= "admin" and not APTweaksVars.CoopServerMode then return end
+
     SetupData(true)
     ModData.transmit("aptweaks")
 

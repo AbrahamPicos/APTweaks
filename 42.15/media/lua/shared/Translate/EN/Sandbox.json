@@ -1,0 +1,27 @@
+{
+	"Sandbox_APTweaks": "APTweaks",
+
+	"Sandbox_APTweaks_CoopServerMode": "Coop server mode",
+	"Sandbox_APTweaks_CoopServerMode_tooltip": "If APTweaks needs to run on a coop server (not recommended).",
+
+	"Sandbox_APTweaks_TeleportSystemEnabled": "Teleport system",
+	"Sandbox_APTweaks_TeleportSystemEnabled_tooltip": "If APTweaks's anti-AFK system will be enabled.",
+
+	"Sandbox_APTweaks_AfkSystemEnabled": "AFK system",
+	"Sandbox_APTweaks_AfkSystemEnabled_tooltip": "if APTweaks's anti-AFK system will be enabled.",
+
+	"Sandbox_APTweaks_SafehouseSystemEnabled": "Buildingless safehouse system",
+	"Sandbox_APTweaks_SafehouseSystemEnabled_tooltip": "If APTweaks's buildingless safehouse system will be enabled.",
+
+	"Sandbox_APTweaks_TeleportDelay": "Teleport delay",
+	"Sandbox_APTweaks_TeleportDelay_tooltip": "The number of seconds a player must remain still before being teleported.",
+
+	"Sandbox_APTweaks_TeleportCooldown": "Teleport cooldown",
+	"Sandbox_APTweaks_TeleportCooldown_tooltip": "The number of seconds a player must wait before being able to teleport again.",
+
+	"Sandbox_APTweaks_AfkStart": "AFK start",
+	"Sandbox_APTweaks_AfkStart_tooltip": "The number of seconds a player must remain inactive before being considered AFK.",
+
+	"Sandbox_APTweaks_AfkKick": "AFK kick",
+	"Sandbox_APTweaks_AfkKick_tooltip": "The number of seconds a player must remain inactive after being considered AFK before being kicked from the server."
+}

@@ -18,31 +18,59 @@ local Events = aptweaks.Events
 local SafeHouse = aptweaks.SafeHouse
 local getConnectedPlayers = aptweaks.getConnectedPlayers
 
+-- Genera una tabla con 'numEntries' elementos, cada uno contiene un string de 'stringSize' bytes.
+-- Ejemplo: generateHugeTable(100000, 1024) -> 100.000 entradas de 1KB = ~100 MB en memoria.
+-- Ejemplo de uso:
+-- local myBigTable = generateHugeTable(500000, 512)  -- 500k entradas de 512 bytes = ~256 MB
+-- sendClientCommand(player, "TestMod", "hugeData", myBigTable)  -- ¡Esto colapsará!
+local function generateHugeTable(numEntries, stringSize)
+    local huge = {}
+    local filler = string.rep("X", stringSize) -- Pre-generamos el string para evitar overhead en el bucle
+    for i = 1, numEntries do
+        huge[i] = filler
+    end
+    return huge
+end
+
+-- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por un cliente.
+--- Evita problemas de sincronización.
+aptweaks_temp.blocked = aptweaks_temp.blocked or {}
+-- El submapa de los clientes que se están teletransportando en este momento.
+-- También resuelve problemas de sincronización.
+aptweaks_temp.inTeleport = aptweaks_temp.inTeleport or {}
+
+local function RolesA()
+    local IDs = ""
+
+    for i = 0, getRoles():size() - 1 do -- Es ridículo no tener un método getRole(string) para hacer esto.
+        local role = getRoles():get(i)
+
+        IDs = IDs .. "-" .. role:getName()
+    end
+
+    return {command = "HUGE", data = generateHugeTable(50000, 8)}
+end
+
+-- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod restrea a los jugadores conectados.
+local onlinePlayers = {}
 local client_commands = {
+
     ClearDataCommand = {
-        handler = function (_, _) return ClearDataCommand() end
+        handler = function (player, _) return ClearDataCommand(player) end
     },
-    WarpComand = {
-        handler = function(_, args) return WarpCommand(args) end
+    WarpCommand = {
+        handler = function(player, args) return WarpCommand(player, args) end
     },
     SafezoneCommand = {
         handler = function (player, args) return SafezoneCommand(player, args) end
     },
     TeleportCommand = {
         handler = function (player, args) return TeleportCommand(player, args) end
+    },
+    Something = {
+        handler = function (_, _) return RolesA() end
     }
 }
--- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod restrea a los jugadores conectados.
-local onlinePlayers = {}
--- El mapa de datos de APTweaks. Se referencia aquí para un acceso más rápido en el evento OnTick.
-local aptweaks_data
-
--- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por un cliente.
---- Evita problemas de sincronización.
-aptweaks_temp.blocked = {}
--- El submapa de los clientes que se están teletransportando en este momento.
--- También resuelve problemas de sincronización.
-aptweaks_temp.inTeleport = {}
 
 -- En el evento OnInitGlobalModData. Crea el mapa de Datos de APTweaks.
 ---@param isNewGame boolean Si GlobalModData se inicializa en un nuevo guardado.
@@ -58,12 +86,15 @@ end
 ---@param args table Los argumentos del comando.
 local function OnClientCommand(module, command, player, args)
 
+    -- Si el módulo no coincide con APTweaks, no hay nada que hacer.
     if module ~= modID then return end
 
+    -- Manejar comando.
     local result = client_commands[command].handler(player, args)
 
+    -- Procesar el resultado.
     if result then
-        processCommandResult(player, result)
+        processCommandResult(player, result, modID)
     end
 end
 
@@ -139,7 +170,7 @@ local function OnTick(tick)
 
     -- Por cada área bloqueada.
     for username, areaID in pairs(aptweaks_temp.blocked) do
-        local area = aptweaks_data.areas[areaID]
+        local area = aptweaks.aptweaks_data.areas[areaID]
         local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
 
         -- Si la safehouse fue creada, desbloquear.

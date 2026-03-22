@@ -6,7 +6,7 @@ option APTweaks.CoopServerMode
     default = false,
 
     page = APTweaks,
-    translation = Sandbox_APTweaks_CoopServerMode,
+    translation = APTweaks_CoopServerMode,
 }
 
 option APTweaks.TeleportSystemEnabled

@@ -10,6 +10,7 @@ aptweaks.ISChat = aptweaks.ISChat or ISChat -- El módulo APTweaks.lua está en 
 
 local modID = aptweaks.modID
 local client_flags = aptweaks.client_flags
+local aptweaks_temp = aptweaks.aptweaks_temp
 local legacy_functions = aptweaks.legacy_functions
 
 local WarpCommand = chatCommands.WarpCommand
@@ -19,8 +20,10 @@ local APTweaksSafezoneCommand = chatCommands.APTweaksSafezoneCommand
 local APTweaksWarpCommand = chatCommands.APTweaksWarpCommand
 local processCommandResult = aptweaks.processCommandResult
 
+local Events = aptweaks.Events
 local ISChat = aptweaks.ISChat
 local isAdmin = aptweaks.isAdmin
+local getText = aptweaks.getText
 local Capability = aptweaks.Capability
 local isCoopHost = aptweaks.isCoopHost
 local doKeyPress = aptweaks.doKeyPress
@@ -31,28 +34,33 @@ legacy_functions.onCommandEntered = legacy_functions.onCommandEntered or ISChat.
 legacy_functions.addLineInChat = legacy_functions.addLineInChat or ISChat.addLineInChat
 legacy_functions.updateChatPrefixSettings = legacy_functions.updateChatPrefixSettings or ISChat.updateChatPrefixSettings
 
+aptweaks_temp.aptweaks_commands = aptweaks_temp.aptweaks_commands or {}
+
 local luautils = aptweaks.luautils
 local APTweaksVars = aptweaks.APTweaksVars
 
--- Valida si se cumplen los requerimientos para la ejecución de un comando de APTweaks.
--- Se usa un mensaje genérico para simular que el comando no existe.
+-- Valida si se cumplen los requerimientos para la ejecución de un comando de chat de APTweaks.
 ---@param player table El IsoPlayer asociado al cliente.
----@param commandData table La tabla que define al comando.
----@return table|nil return Devuelve un mensaje de error si no pasó la validación, de lo contrario no devuelve nada.
-local function getFailMessage(player, commandData)
-    local requires = commandData.requires or {}
+---@param requires table La tabla con los requerimientos del comando.
+---@return boolean canExecute Si el comando pasó la validacioń.
+local function getFailMessage(player, requires)
 
     -- Validar personaje, permisos, y disponibilidad de sistemas.
-    return (not player:isAlive()
-        or (requires.admin and not (isCoopHost() or isAdmin()))
-        or (requires.teleportSystem and not APTweaksVars.TeleportSystemEnabled)
-        or (requires.safehouseSystem and not APTweaksVars.SafehouseSystemEnabled))
-        and {text = "Unknown command " .. commandData.name} or nil
+    if not player:isAlive() then return false end
+
+    if requires.admin and not (isCoopHost() or isAdmin()) then return false end
+
+    if requires.teleportSystem and not APTweaksVars.TeleportSystemEnabled then return false end
+
+    if requires.safehouseSystem and not APTweaksVars.SafehouseSystemEnabled then return false end
+
+    return true
 end
 
-local aptweaks_streams = {
+aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
     {
         name = "aptweaks",
+        provider = modID,
         command = "/aptweaks ",
         tabID = 1,
         argc = {min = 1, max = 3},
@@ -79,6 +87,7 @@ local aptweaks_streams = {
             }}
     }, {
         name = "warp",
+        provider = modID,
         command = "/warp ",
         tabID = 1,
         argc = {min = 1, max =1},
@@ -90,6 +99,7 @@ local aptweaks_streams = {
         handler = function(player, args) return WarpCommand(player, args) end
     }, {
         name = "warps",
+        provider = modID,
         command = "/warps ",
         tabID = 1,
         usage = "IGUI_APTweaks_WarpsCommandUsage",
@@ -100,6 +110,7 @@ local aptweaks_streams = {
         handler = function(_, _) return WarpsCommand() end
     }, {
         name = "claim",
+        provider = modID,
         command = "/claim ",
         tabID = 1,
         usage = "IGUI_APTweaks_ClaimCommandUsage",
@@ -110,6 +121,7 @@ local aptweaks_streams = {
         handler = function(player, _) return ClaimCommand(player) end
     }, {
         name = "something",
+        provider = modID,
         command = "/something ",
         tabID = 1,
         usage = "IGUI_APTweaks_SomethingCommandUsage",
@@ -117,38 +129,29 @@ local aptweaks_streams = {
             admin = true,
             checker = getFailMessage
         },
-        handler = function(_, _) return {command = "something", data = {}} end
+        handler = function(_, _) return {command = "Something", data = {}} end
     }
 }
-local aptweaks_commands = {}
+local aptweaks_streams = aptweaks_temp.aptweaks_streams
+local aptweaks_commands = aptweaks_temp.aptweaks_commands
 
--- Obtiene el resultado de manejar un comando de Chat de APTweaks.
+-- Despacha un comando de Chat de APTweaks.
 ---@param player table El IsoPlayer asociado al cliente.
----@param command string El comando que se interpretó.
----@param argsString string Una cadena con los argumentos sin procesar que acompañaron al comando.
----@return table result El resultado del comando una tabla con un texto y un comando según se requiera.
-local function getAPTweaksChatCommandResult(player, command, argsString)
-    -- Separar argumentos y limpiar espacios.
-    local args = {}
-
-    for arg in string.gmatch(argsString, "%S+") do
-        table.insert(args, arg)
-    end
-
+---@param commandData table La tabla que define al comando.
+---@param args table Una tabla con los argumentos que acompañaron al comando.
+---@return table resul El resultado del comando una tabla con un texto y un comando según se requiera.
+local function handleAPTweaksChatCommand(player, commandData, args)
     -- Comprobar los requerimientos específicos del comando.
-    local commandData = aptweaks_commands[command] -- Esto nunca es nil.
-    local failMessage = commandData.requires.checker(player, commandData)
+    local requires = commandData.requires
 
-    if failMessage then return failMessage end
+    if not requires.checker(player, requires) then
+        return {text = "Unknown command " .. commandData.name}
+    end
 
     -- Validar si cumple con el número mínimo de argumentos.
     local argsRange = commandData.argc or {min = 0, max = 0}
     local usage = commandData.usage
     local argc = #args
-
-    if argc < argsRange.min then
-        return {text = string.format(getText("IGUI_APTweaks_Chat_FewArgs"), getText(usage))}
-    end
 
     -- Comprobar si debería haber un subcomando.
     local subcommands = commandData.subcommands
@@ -157,26 +160,25 @@ local function getAPTweaksChatCommandResult(player, command, argsString)
         local subcommandData = commandData.subcommands[args[1]]
 
         if subcommandData then
-            argsRange = {min = argsRange.min, max = subcommandData.argc.max}
+            argsRange.min, argsRange.max = subcommandData.argc.max, subcommandData.argc.max
             usage = subcommandData.usage
         end
 
         commandData = subcommandData
     end
 
-    -- Comprobar el rango máximo de argumentos.
-    if argc > argsRange.max then
-        return {text = string.format(getText("IGUI_APTweaks_Chat_ManyArgs"), getText(usage))}
+    -- Comprobar el rango de argumentos.
+    if argc < argsRange.min then
+        return {text = getText("IGUI_APTweaks_Chat_FewArgs", getText(usage))}
     end
 
-    -- Manejar comando.
-    local result = commandData and commandData.handler(player, args)
-
-    if not result then
-        return {text = string.format(getText("IGUI_APTweaks_Chat_IncorrectUse"), getText(usage))}
+    if commandData and argc > argsRange.max then
+        return {text = getText("IGUI_APTweaks_Chat_ManyArgs", getText(usage))}
     end
 
-    return result
+    -- Obtener resultado. 
+    return commandData and commandData.handler(player, args)
+        or {text = getText("IGUI_APTweaks_Chat_IncorrectUse", getText(usage))}
 end
 
 -- Interpreta si el texto ingresado en el chat es un comando de APTweaks.
@@ -187,10 +189,10 @@ end
 local function APTweaksOnCommandEntered(player, chat, textEntry)
 
     -- Validar entrada de texto.
-    if not textEntry or textEntry == "" then return end
+    if not textEntry or textEntry == "" or textEntry == " " then return end
 
     -- Comprobar enfriamiento por modo lento.
-    if not (player:getRole():hasCapability(Capability.IgnoreChatSlowMode) and (chat.timerMessageSlowMode > getTimestampMs())) then
+    if not player:getRole():hasCapability(Capability.IgnoreChatSlowMode) and chat.timerMessageSlowMode > getTimestampMs() then
         return -- Debe haber una manera de evitar que el usuario vea este mensaje.
     end
 
@@ -213,15 +215,23 @@ local function APTweaksOnCommandEntered(player, chat, textEntry)
     -- Validar coincidencia y pestaña.
     if not commandString or (chat.currentTabID ~= commandData.tabID) then return end
 
-    -- Obtener resultado y procesar comando.
-    local args = string.sub(textEntry, #commandString)
-    local result = getAPTweaksChatCommandResult(player, commandData.name, args)
+    -- Separar argumentos y limpiar espacios.
+    local args = {}
 
-    processCommandResult(player, result)
+    for arg in string.gmatch(string.sub(textEntry, #commandString), "%S+") do
+        table.insert(args, arg)
+    end
 
+    -- Manejar comando.
+    local result = handleAPTweaksChatCommand(player, commandData, args)
+
+    processCommandResult(player, result, commandData.provider)
+
+    -- Terminar.
     chat:unfocus()
-    chat.textEntry:setText("")
     doKeyPress(false)
+    chat.textEntry:setText("")
+
     chat.timerTextEntry = 20
 end
 
@@ -242,10 +252,14 @@ local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
     for i = previousStreamIndex + 1, maxIndex do
         local aptweaksCommand = aptweaks_commands[allChatStreams[i].name]
 
-        if aptweaksCommand and not getFailMessage(client_flags.player, aptweaksCommand) then
-            curTxtPanel.streamID = i
-            ISChat.instance.textEntry:setText(aptweaksCommand.command)
-            return
+        if aptweaksCommand then
+            local requires = aptweaksCommand.requires
+
+            if requires.checker(client_flags.player, requires) then
+                curTxtPanel.streamID = i
+                ISChat.instance.textEntry:setText(aptweaksCommand.command)
+                return
+            end
         end
     end
 end
@@ -303,7 +317,7 @@ function ISChat:onCommandEntered()
     -- Por alguna razón esto no está en la tabla `self`.
     local chat = ISChat.instance
 
-    APTweaksOnCommandEntered(client_flags.player, chat, chat.textEntry:getText())
+    APTweaksOnCommandEntered(client_flags.player, chat, chat.textEntry:())
     legacy_functions.onCommandEntered(self)
 end
 

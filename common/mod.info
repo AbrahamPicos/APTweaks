@@ -5,7 +5,7 @@ description=A test mod for development on Project Zomboid servers.
 poster=poster.png
 icon=aptweaks_icon.png
 
-versionMin=42.13
+versionMin=42.15.3
 
 modversion=0.1
 author=AbrahamPicos
