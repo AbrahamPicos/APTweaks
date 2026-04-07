@@ -36,30 +36,19 @@ local server_commands = {
     }, -- args = {x = x, y = y, z = z}
     TeleportCommand = {
         handler = function (player, args) return TeleportCommand(player, args) end
-    }, -- args = {x = x, y = y, z = z, name = name}
+    }, -- args = {x = x, y = y, z = z, name = name} *DESACTUALIZADO*
     PlayerConnected = {
         handler = function (_, args) return PlayerConnectedCommand(args) end
-    },
+    }, -- args = {username = username}
     playerDisconnected = {
         handler = function (_, args) return PlayerDisconnectedCommand(args) end
-    }
+    } -- args = {username = username}
 }
-
--- Añadir Timers. (ERROR: Si el archivo se recarga esto podría transtornarlo todo)
-setTimer("afk")
-setTimer("teleport")
 
 -- En el evento OnGameStart.
 -- Cachea el IsoPlayer asociado al cliente.
 local function OnGameStart()
     client_flags.player = getPlayer()
-end
-
--- En el evento OnInitGlobalModData.
--- Obtiene la Global ModData de APTweaks al iniciar la sesión.
----@param newGame boolean Si GlobalModData se inicializa en un nuevo guardado. Esto no es relevante para este mod.
-local function OnInitGlobalModData(newGame)
-    aptweaks.aptweaks_data = ModData.get("aptweaks")
 end
 
 -- En el evento OnServerCommand.
@@ -77,7 +66,39 @@ local function OnServerCommand(module, command, args)
     local result = server_commands[command].handler(player, args)
 
     -- Procesar el resultado.
-    processCommandResult(player, result, modID)
+    if result then
+        processCommandResult(player, result, modID)
+    end
+end
+
+-- Reinicia el estado AFK del cliente.
+---@param player table|nil El IsoPlayer asociado al cliente.
+local function resetAfkStatus(player)
+    -- Restablecer timer
+    setTimer("afk")
+
+    -- Validar si pasó suficiente tiempo para tener que notificar al usuario.
+    if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
+        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
+    end
+end
+
+-- Restablece el estado de teletransporte del cliente.
+---@param player table El IsoPlayer asociado al cliente.
+---@param teleporting table Una referencia a la tabla de teletransporte del cliente (optimización).
+local function resetTeleportStatus(player, teleporting)
+    -- restablecer timer y notificar al usuario.
+    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
+    setTimer("teleport")
+
+    -- Validar que aún no se haya enviado una solicitud al servidor. Si se hizo, cambiar estado a cancelado y salir.
+    if teleporting.status == "requested" then
+        teleporting.status = "cancelled"
+        return
+    end
+
+    -- Limpiar teletransporte.
+    client_flags.teleporting = nil
 end
 
 -- Actualiza el estado AFK del cliente.
@@ -85,38 +106,32 @@ end
 ---@param deltaTime number La fracción de segundo que transcurrió desde el último tick.
 local function updateAfkStatus(player, deltaTime)
 
-    -- Si el jugador se movió, reiniciar estado. De lo contrario actualizar timer.
+    -- Si el jugador se movió, reiniciar estado.
     if client_flags.isMoving then
-
-        if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then -- Actualizar notificación sólo si la hubo.
-            player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
-        end
-
-        setTimer("afk")
+        resetAfkStatus(player)
         return
-
-    else
-        -- Validar que ha pasado suficiente tiempo desde la última actualización.
-        local seconds, isWholeSecond = getTimerUpdate("afk", deltaTime)
-
-        if not isWholeSecond or (seconds < APTweaksVars.AfkStart) then return end
-
-        -- Actualizar notificación AFK.
-        if player then
-            player:setHaloNote(getText("IGUI_APTweaks_HaloNote_Afk"), 255, 0, 0, 500) -- No hace nada si isAlive es false.
-        end
-
-        -- Validar que ha pasado suficiente tiempo para una expulsión.
-        if seconds ~= (APTweaksVars.AfkStart + APTweaksVars.AfkKick) then return end
-
-        -- Expulsar.
-        if not player then -- Si aún está en el menú principal. Lamentablemente no funciona durante la pantalla de carga.
-            getCore():quit()
-            return
-        end
-
-        getCore():exitToMenu()
     end
+
+    local seconds, isWholeSecond = getTimerUpdate("afk", deltaTime)
+
+    -- Validar que ha pasado suficiente tiempo desde la última actualización.
+    if not isWholeSecond or (seconds < APTweaksVars.AfkStart) then return end
+
+    -- Si hay un jugador asociado al cliente, actualizar notificación AFK.
+    if player then
+        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_Afk"), 255, 0, 0, 500) -- No hace nada si isAlive es false.
+    end
+
+    -- Validar que ha pasado suficiente tiempo para una expulsión, y que el tiempo no es mayor al necesario.
+    if seconds ~= (APTweaksVars.AfkStart + APTweaksVars.AfkKick) then return end
+
+    -- Expulsar.
+    if not player then -- Si aún está en el menú principal. Lamentablemente no funciona durante la pantalla de carga.
+        getCore():quit()
+        return
+    end
+
+    getCore():exitToMenu()
 end
 
 -- Actualiza el estado de teletransporte del cliente.
@@ -126,41 +141,27 @@ end
 local function updateTeleportStatus(player, deltaTime)
     local teleporting = client_flags.teleporting
 
-    -- Si no se está en teletransporte o fue cancelado, no hay nada qué hacer.
+    -- Si no se está en teletransporte, o fue cancelado luego de enviar una solicitud al servidor, no hay nada qué hacer.
     if not teleporting or teleporting.status == "cancelled" then return end
 
-    -- Si el jugador se movió, reiniciar estado, de lo contrario, actualizar timer.
+    -- Si el jugador se movió, reiniciar estado.
     if client_flags.isMoving then
-
-        -- Si ya se envió una solicitud al servidor, marcar como fallido. De lo contrario, restablecer estado. 
-        if teleporting.status ~= "begins" then
-            teleporting.status = "cancelled"
-
-        else
-            client_flags.teleporting = nil
-        end
-
-        -- Notificar al usuario y restablecer timer.
-        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
-        setTimer("teleport")
+        resetTeleportStatus(player, teleporting)
         return
+    end
 
-    else
-        -- Validar que ha pasado suficiente tiempo desde la última actualización.
-        local seconds, isWholeSecond = getTimerUpdate("teleport", deltaTime)
+    local seconds, isWholeSecond = getTimerUpdate("teleport", deltaTime)
 
-        if not isWholeSecond then return end
+    -- Validar que ha pasado suficiente tiempo desde la última actualización, y que el tiempo no es mayor al necesario.
+    if not isWholeSecond or (seconds > APTweaksVars.TeleportDelay) then return end
 
-        -- Actualizar notificación de retraso de teletransporte.
-        local secondsLeft = math.abs(seconds - APTweaksVars.TeleportDelay)
+    -- Actualizar notificación de retraso de teletransporte.
+    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportDelaying", math.abs(seconds - APTweaksVars.TeleportDelay)), 0, 255, 0, 500)
 
-        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportDelaying", secondsLeft), 0, 255, 0, 500)
-
-        -- si ha pasado suficiente tiempo, enviar solicitud de teletransporte al servidor.
-        if seconds == APTweaksVars.TeleportDelay then
-            sendClientCommand(player, modID, "TeleportCommand", {location = teleporting.location, isRequest = true})
-            teleporting.status = "requested"
-        end
+    -- si ya terminó el tiempo, notificar al usuario, y enviar solicitud de teletransporte al servidor.
+    if seconds == APTweaksVars.TeleportDelay then
+        sendClientCommand(player, modID "TeleportCommand", {status = "requested"})
+        teleporting.status = "requested"
     end
 end
 
@@ -199,7 +200,7 @@ local function OnTickEvenPaused(tick)
 end
 
 -- Intercepta y traduce los mensajes de muerte antes de que los vean los clientes.
----@param message table Un ChatMessage
+---@param message table Un ChatMessage.
 ---@param tabId number La ID de la pestaña a la que fue añadido el mensaje.
 local function OnAddMessage(message, tabId)
 
@@ -218,7 +219,6 @@ local function OnAddMessage(message, tabId)
     end
 end
 
-Events.OnInitGlobalModData.Add(OnInitGlobalModData)
 Events.OnGameStart.Add(OnGameStart)
 Events.OnTickEvenPaused.Add(OnTickEvenPaused)
 Events.OnFETick.Add(OnTickEvenPaused)
@@ -232,4 +232,3 @@ Events.OnAddMessage.Add(OnAddMessage)
 -- Que el sistema anti-AFK pueda expulsar durante la pantalla de carga (muy complicado).
 -- Que la teletransportación se cancele si provocas o recibes daño.
 -- que la teletransportación no se cancele cuando el jugador intente ver a su alrededor (muy complicado).
--- Que el mensaje de muerte y los mensajes de bienvenida y despedida tengan cadenas de internacionalización.

@@ -9,7 +9,7 @@ local aptweaks = {
     modID = "com.github.abrahampicos.aptweaks",
     -- Variables para el jugador controladas por el evento tick. Son útiles para el comando warp y el sistema AFK.
     client_flags = {},
-    -- Datos que APTweaks necesita en tiempo de ejecución, pero que no hace falta que persistan.
+    -- Datos varios que APTweaks necesita en tiempo de ejecución.
     aptweaks_temp = {},
     -- Respaldos de las funciones que fueron sobrescritas por APTweaks.
     legacy_functions = {},
@@ -34,6 +34,7 @@ local aptweaks = {
     isServer = isServer,
     getPlayer = getPlayer,
     setupRole = setupRole,
+    deleteRole = deleteRole,
     isCoopHost = isCoopHost,
     doKeyPress = doKeyPress,
     triggerEvent = triggerEvent,
@@ -57,44 +58,6 @@ local sendServerCommand = aptweaks.sendServerCommand
 
 local modID = aptweaks.modID
 local aptweaks_temp = aptweaks.aptweaks_temp
-
--- Inicializar timers.
-aptweaks_temp.timers = {}
-
--- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).
----@param t table La tabla que se verificará. Cualquier cosa que no sea una tabla se conciderará vacía.
----@return boolean isEmpty Si la tabla estaba vacía.
-function aptweaks.isTableEmpty(t)
-
-    if type(t) ~= "table" then return true end
-
-    for _ in pairs(t) do
-        return false
-    end
-
-    return true
-end
-
--- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
----@param reset boolean Si el mapa debe restablecerse, lo que borrará todos los datos.
-function aptweaks.SetupData(reset)
-    -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
-    local aptweaks_data = ModData.getOrCreate("aptweaks")
-
-    aptweaks.aptweaks_data = aptweaks_data
-
-    if not aptweaks.isTableEmpty(aptweaks_data) and not reset then return end
-
-    -- La versión de la estructura de datos. Se usará para saber si debe actualizarse cuando se actualiza el mod.
-    aptweaks_data.dataversion = 1
-    -- El submapa de las áreas. Contiene toda la información de las áreas que pueden reclamarse como non-building safehouses.
-    aptweaks_data.areas = {}
-    -- El submapa que indexa las áreas por celda.
-    -- APTweaks usa una cuadricula espacial para indexar las áreas, lo que reduce las iteraciones al acceder al mapa de datos.
-    aptweaks_data.cells = {}
-    -- El submapa que contiene los warps.
-    aptweaks_data.warps = {}
-end
 
 -- Instancia un ChatMessge falso para usarlo con la función `ISChat.addLineInChat`.
 ---@param size string El tamaño del texto. Puede cambiarse luego con setSize(). Puede ser "small", "medium", y "large".
@@ -122,6 +85,39 @@ local function getFakeChatMessage(size, text, author, isShowAuthor)
     }
 end
 
+-- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).
+---@param t table La tabla que se verificará. Cualquier cosa que no sea una tabla se conciderará vacía.
+---@return boolean isEmpty Si la tabla estaba vacía.
+function aptweaks.isTableEmpty(t)
+
+    if type(t) ~= "table" then return true end
+
+    for _ in pairs(t) do
+        return false
+    end
+
+    return true
+end
+
+-- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
+---@param reset boolean Si el mapa debe restablecerse, lo que borrará todos los datos.
+function aptweaks.SetupData(reset)
+    -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
+    aptweaks.aptweaks_data = ModData.getOrCreate("aptweaks")
+
+    if aptweaks.isTableEmpty(aptweaks.aptweaks_data) or reset then
+        -- La versión de la estructura de datos. Se usará para saber si debe actualizarse cuando se actualiza el mod.
+        aptweaks.aptweaks_data.dataversion = 1
+        -- El submapa de las áreas. Contiene toda la información de las áreas que pueden reclamarse como non-building safehouses.
+        aptweaks.aptweaks_data.areas = {}
+        -- El submapa que indexa las áreas por celda.
+        -- APTweaks usa una cuadricula espacial para indexar las áreas, lo que reduce las iteraciones al acceder al mapa de datos.
+        aptweaks.aptweaks_data.cells = {}
+        -- El submapa que contiene los warps.
+        aptweaks.aptweaks_data.warps = {}
+    end
+end
+
 -- Procesa la respuesta de todos los comandos de APTweaks cuando son usados a travez de APTweaks.
 ---@param player table Un objeto IsoPlayer.
 ---@param result table La tabla con el resultado del comando.
@@ -136,7 +132,7 @@ function aptweaks.processCommandResult(player, result, provider)
 
     elseif isClient() then
 
-        if commandName == "MessageCommand" then
+        if commandName == "MessageCommand" or data.text then
             local ISChat = aptweaks.ISChat
 
             ISChat.addLineInChat(getFakeChatMessage(ISChat.instance.chatFont, data.text, provider, false), 0)
@@ -163,11 +159,11 @@ end
 -- Actualiza un timer, y devuelve sus variables.
 ---@param name string El nombre del timer.
 ---@param time number El tiempo que se añadirá al timer.
----@return number|nil cycle El número de ciclo.
+---@return number cycle El número de ciclo.
 ---@return boolean isCycleUpdate Si esta actualización resultó en un nuevo ciclo.
 function aptweaks.getTimerUpdate(name, time)
     local timer = aptweaks_temp.timers[name]
-    local isCycleUpdate = timer.justAdded
+    local isCycleUpdate = timer.justAdded -- Con esto el primer ciclo es el 0.
 
     timer.counter = timer.counter + time
     timer.justAdded = false
@@ -179,6 +175,15 @@ function aptweaks.getTimerUpdate(name, time)
     end
 
     return timer.cycles, isCycleUpdate
+end
+
+-- Inicializar timers.
+if isClient() then
+    local setTimer = aptweaks.setTimer
+
+    aptweaks_temp.timers = {}
+
+    setTimer("afk"); setTimer("teleport")
 end
 
 return aptweaks

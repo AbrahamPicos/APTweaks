@@ -18,41 +18,14 @@ local Events = aptweaks.Events
 local SafeHouse = aptweaks.SafeHouse
 local getConnectedPlayers = aptweaks.getConnectedPlayers
 
--- Genera una tabla con 'numEntries' elementos, cada uno contiene un string de 'stringSize' bytes.
--- Ejemplo: generateHugeTable(100000, 1024) -> 100.000 entradas de 1KB = ~100 MB en memoria.
--- Ejemplo de uso:
--- local myBigTable = generateHugeTable(500000, 512)  -- 500k entradas de 512 bytes = ~256 MB
--- sendClientCommand(player, "TestMod", "hugeData", myBigTable)  -- ¡Esto colapsará!
-local function generateHugeTable(numEntries, stringSize)
-    local huge = {}
-    local filler = string.rep("X", stringSize) -- Pre-generamos el string para evitar overhead en el bucle
-    for i = 1, numEntries do
-        huge[i] = filler
-    end
-    return huge
-end
-
--- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por un cliente.
---- Evita problemas de sincronización.
-aptweaks_temp.blocked = aptweaks_temp.blocked or {}
+-- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod rastrea conexiones y desconexiones.
+aptweaks_temp.onlinePlayers = aptweaks_temp.onlinePlayers or {}
 -- El submapa de los clientes que se están teletransportando en este momento.
--- También resuelve problemas de sincronización.
-aptweaks_temp.inTeleport = aptweaks_temp.inTeleport or {}
+aptweaks_temp.teleport = aptweaks_temp.teleport or {}
+-- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
+aptweaks_temp.blocked = aptweaks_temp.blocked or {}
 
-local function RolesA()
-    local IDs = ""
-
-    for i = 0, getRoles():size() - 1 do -- Es ridículo no tener un método getRole(string) para hacer esto.
-        local role = getRoles():get(i)
-
-        IDs = IDs .. "-" .. role:getName()
-    end
-
-    return {command = "HUGE", data = generateHugeTable(50000, 8)}
-end
-
--- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod restrea a los jugadores conectados.
-local onlinePlayers = {}
+local onlinePlayers = aptweaks_temp.onlinePlayers
 local client_commands = {
 
     ClearDataCommand = {
@@ -68,14 +41,26 @@ local client_commands = {
         handler = function (player, args) return TeleportCommand(player, args) end
     },
     Something = {
-        handler = function (_, _) return RolesA() end
+        handler = function (_, _) return nil end
     }
 }
 
 -- En el evento OnInitGlobalModData. Crea el mapa de Datos de APTweaks.
+-- Este también es un buen punto para purgar datos.
 ---@param isNewGame boolean Si GlobalModData se inicializa en un nuevo guardado.
 local function OnInitGlobalModData(isNewGame)
+    local roles = getRoles()
+
     SetupData(false)
+
+    -- Eliminar los roles de APTwekas rezagados. Esto puede pasar si el servidor se apaga incorrectamente.
+    for i = 0, roles:size() - 1 do
+        local role = roles:get(i)
+
+        if luautils.stringStarts(role:getName(), "APTweaks_Teleport") then
+            deleteRole(role) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
+        end
+    end
 end
 
 -- En el evento OnClientCommand.
@@ -99,10 +84,10 @@ local function OnClientCommand(module, command, player, args)
 end
 
 -- Ejecuta acciones cuando un jugador se conecta al servidor.
----@param username string
-local function AftherPlayerConnected(username)
+---@param player table
+local function AftherPlayerConnected(player)
     -- Notificar de la conexión a todos los clientes
-    sendServerCommand(modID, "PlayerConnected", {username = username})
+    sendServerCommand(modID, "PlayerConnected", {username = player:getUsername()})
 end
 
 -- Ejecuta acciones cuando un jugador se desconectó del servidor.
@@ -117,32 +102,15 @@ local function AftherPlayerDisconected(username)
     end
 end
 
--- Actualiza los estados del jugador. Como cuando está en teletransporte.
----@param username string
----@param tick number
-local function updatePlayerStatus(username, tick)
-    -- Si el jugador está en teletransporación.
-    local inTeleportTickStart = aptweaks_temp.inTeleport[username]
-
-    if inTeleportTickStart then
-
-        if inTeleportTickStart == -1 then
-            aptweaks_temp.inTeleport[username] = tick
-
-        elseif tick - inTeleportTickStart >= 30 then
-            aptweaks_temp.inTeleport[username] = nil
-        end
-    end
-end
-
 -- En el evento OnTick.
 ---@param tick integer El tick actual.
 local function OnTick(tick)
-    -- Por cada jugador conectado.
     local currentPlayers = {}
+    local players = getConnectedPlayers()
 
-    for i = 0, getConnectedPlayers():size() - 1 do
-        local player = getConnectedPlayers():get(i)
+    -- Por cada jugador conectado.
+    for i = 0, players:size() - 1 do
+        local player = players:get(i)
         local username = player:getUsername()
 
         currentPlayers[username] = true
@@ -154,7 +122,7 @@ local function OnTick(tick)
             AftherPlayerConnected(player)
         end
 
-        updatePlayerStatus(username, tick)
+        --updatePlayerStatus(username, tick)
     end
 
     -- Por cada jugador conectado el tick anterior.
@@ -165,6 +133,14 @@ local function OnTick(tick)
             onlinePlayers[username] = nil
 
             AftherPlayerDisconected(username)
+        end
+    end
+
+    -- Por cada cliente en teletransporte.
+    for _, teleport in pairs(aptweaks_temp.teleport) do
+
+        if teleport.time > 6000 then
+            TeleportEndsCommand()
         end
     end
 

@@ -46,7 +46,6 @@ function chatCommands.APTweaksWarpCommand(player, action, warp)
         data.location = {x = math.floor(player:getX()), y = math.floor(player:getY()), z = math.floor(player:getZ())}
     end
 
-    print("SE SUPONE QUE ESTO FUNCIONA " .. warp .. " " .. action)
     return {command = "WarpCommand", data = data}
 end
 
@@ -91,12 +90,6 @@ end
 ---@return table result Una tabla con la respuesta. Un texto, y un comando con sus argumentos según se requiera.
 function chatCommands.WarpCommand(player, args)
     local warp = args[1] -- El warp que el jugador ingresó, tal cual como lo escribió.
-    local warps = aptweaks.aptweaks_data.warps
-    local location = warps[warp]
-
-    if not location then
-        return {text = getText("IGUI_APTweaks_Chat_MissingWarp", warp, showWarps(warps))}
-    end
 
     if player:getVehicle() then
         return {text = getText("IGUI_APTweaks_Chat_RidingExecutionForbidden")}
@@ -110,9 +103,9 @@ function chatCommands.WarpCommand(player, args)
         return {text = getText("IGUI_APTweaks_Chat_AlreadyExecuting")}
     end
 
-    client_flags.teleporting = {status = "begins", location = {x= location.x, y = location.y, z = location.z, name = warp}}
+    player:setHaloNote("Espere un momento...", 0, 255, 0, 500)
 
-    return {text = getText("IGUI_APTweaks_Chat_TeleportBegins", warp)}
+    return {command = "TeleportCommand", data = {status = "begins", name = warp}}
 end
 
 -- El comando `/warps`.

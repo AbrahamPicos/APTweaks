@@ -43,7 +43,7 @@ local APTweaksVars = aptweaks.APTweaksVars
 ---@param player table El IsoPlayer asociado al cliente.
 ---@param requires table La tabla con los requerimientos del comando.
 ---@return boolean canExecute Si el comando pasó la validacioń.
-local function getFailMessage(player, requires)
+local function canExecute(player, requires)
 
     -- Validar personaje, permisos, y disponibilidad de sistemas.
     if not player:isAlive() then return false end
@@ -67,7 +67,7 @@ aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
         usage = "IGUI_APTweaks_MainCommandUsage",
         requires = {
             admin = true,
-            checker = getFailMessage
+            checker = canExecute
         },
         subcommands = {
             cleardata = {
@@ -94,7 +94,7 @@ aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
         usage = "IGUI_APTweaks_WarpCommandUsage",
         requires = {
             teleportSystem = true,
-            checker = getFailMessage
+            checker = canExecute
         },
         handler = function(player, args) return WarpCommand(player, args) end
     }, {
@@ -105,7 +105,7 @@ aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
         usage = "IGUI_APTweaks_WarpsCommandUsage",
         requires = {
             teleportSystem = true,
-            checker = getFailMessage
+            checker = canExecute
         },
         handler = function(_, _) return WarpsCommand() end
     }, {
@@ -116,7 +116,7 @@ aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
         usage = "IGUI_APTweaks_ClaimCommandUsage",
         requires = {
             safehouseSystem = true,
-            checker = getFailMessage
+            checker = canExecute
         },
         handler = function(player, _) return ClaimCommand(player) end
     }, {
@@ -127,7 +127,7 @@ aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
         usage = "IGUI_APTweaks_SomethingCommandUsage",
         requires = {
             admin = true,
-            checker = getFailMessage
+            checker = canExecute
         },
         handler = function(_, _) return {command = "Something", data = {}} end
     }
@@ -139,7 +139,7 @@ local aptweaks_commands = aptweaks_temp.aptweaks_commands
 ---@param player table El IsoPlayer asociado al cliente.
 ---@param commandData table La tabla que define al comando.
 ---@param args table Una tabla con los argumentos que acompañaron al comando.
----@return table resul El resultado del comando una tabla con un texto y un comando según se requiera.
+---@return table resul El resultado del comando. Una tabla con un texto y un comando según se requiera.
 local function handleAPTweaksChatCommand(player, commandData, args)
     -- Comprobar los requerimientos específicos del comando.
     local requires = commandData.requires
@@ -255,9 +255,10 @@ local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
         if aptweaksCommand then
             local requires = aptweaksCommand.requires
 
+            -- Cambiar al comando si se cumple con los requerimientos.
             if requires.checker(client_flags.player, requires) then
-                curTxtPanel.streamID = i
                 ISChat.instance.textEntry:setText(aptweaksCommand.command)
+                curTxtPanel.streamID = i
                 return
             end
         end
@@ -269,7 +270,6 @@ end
 ---@param message table Un objeto ChatMessage, o uno que simule serlo.
 ---@param tabID number La ID de la pestaña en la que se mostrará el mensaje. Tenga en cuenta que la ID de la pestaña 1 es 0.
 ISChat.addLineInChat = function(message, tabID)
-
     legacy_functions.addLineInChat(message, tabID)
 
     local chatText
@@ -291,6 +291,7 @@ ISChat.addLineInChat = function(message, tabID)
                 table.insert(newMessages, msg)
             end
         end
+
         chatText.chatMessages = newMessages
     end
 end
@@ -317,7 +318,7 @@ function ISChat:onCommandEntered()
     -- Por alguna razón esto no está en la tabla `self`.
     local chat = ISChat.instance
 
-    APTweaksOnCommandEntered(client_flags.player, chat, chat.textEntry:())
+    APTweaksOnCommandEntered(client_flags.player, chat, chat.textEntry:getText())
     legacy_functions.onCommandEntered(self)
 end
 
@@ -349,10 +350,12 @@ Events.OnGameStart.Add(function()
             table.insert(ISChat.allChatStreams, aptweaksCommand)
         end
 
-        -- Añadir a un mapa para un acceso rápido
+        -- Añadir a un mapa para un acceso rápido.
         aptweaks_commands[aptweaksCommand.name] = aptweaksCommand
     end
 end)
 
 -- Otros mods podrían usar esto si lo llaman como módulo y añaden a esta tabla sus propios comandos.
 return aptweaks_streams
+
+-- Quizá sea mejor hacer que otros modders puedan lamar a APTweaks.lua en lugar de a esto.

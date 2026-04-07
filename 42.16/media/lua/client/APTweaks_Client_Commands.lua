@@ -7,8 +7,6 @@ local serverCommands, aptweaks = {}, require("APTweaks")
 local client_flags = aptweaks.client_flags
 
 local getText = aptweaks.getText
-local SafeHouse = aptweaks.SafeHouse
-local alreadyHaveSafehouse = aptweaks.alreadyHaveSafehouse
 
 -- Muestra un mensaje cuando un jugador se conectó al servidor.
 function serverCommands.PlayerConnectedCommand(args)
@@ -32,26 +30,41 @@ function serverCommands.SafezoneCommand(player, args) --ESTO ESTA ROTO: Cambió 
     return {text = "Safehouse creada exitosamente."}
 end
 
----comment
---- Valdría la pena probar si ahora esto se puede hacer del lado del servidor.
----@param player table
----@param args table
----@return table result
+-- Teletransporta al jugador asociado al cliente.
+---@param player table El jugador asociado al cliente.
+---@param args table Los argumentos del comando.
+---@return table|nil result El resultado del comando. Un mensaje, y un comando con sus argumentos según se requiera.
 function serverCommands.TeleportCommand(player, args)
 
-    if not client_flags.isTeleporting then
-        client_flags.TeleportRequest = "failed"
+    if args.status == "begins" then
 
-    else
-        local x, y, z = args.x, args.y, args.z
+        APTweaks.client_flags.teleporting = { }
 
-        player:setX(x); player:setY(y); player:setZ(z); player:setLx(x); player:setLy(y); player:setLz(z)
-        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportSuccess", args.name), 0, 255, 0, 500)
-        client_flags.isTeleporting = false
-        client_flags.TeleportRequest = "succeded"
     end
 
-    return {command = "TeleportCommand", data = {isRequest = false}}
+    -- Limpiar teletransporte
+    client_flags.teleporting = nil
+
+    -- Validar si el servidor aprovó la solicitud. Si no es así, notificar al usuario y terminar.
+    if args.status ~= "approved" then
+        return {text = "El servidor denegó la solicitud de teletransporte."}
+    end
+
+    local data = {status = "succeded"}
+
+    -- Validar si el trletransporte aún debe ocurrir.
+    if client_flags.teleporting.status == "cancelled" then
+        data.status = "failed"
+    end
+
+    local location = client_flags.teleporting.location
+
+    -- Teletransportar y notificar al usaurio.
+    player:teleportTo(location.x, location.y, location.z)
+    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportSuccess", location.name), 0, 255, 0, 500)
+
+    -- Notificar al servidor.
+    return {command = "TeleportCommand", data = data}
 end
 
 return serverCommands
