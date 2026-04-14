@@ -19,6 +19,7 @@ local ClaimCommand = chatCommands.ClaimCommand
 local APTweaksSafezoneCommand = chatCommands.APTweaksSafezoneCommand
 local APTweaksWarpCommand = chatCommands.APTweaksWarpCommand
 local processCommandResult = aptweaks.processCommandResult
+local resetAfkStatus = aptweaks.resetAfkStatus
 
 local Events = aptweaks.Events
 local ISChat = aptweaks.ISChat
@@ -188,6 +189,11 @@ end
 ---@param textEntry string El texto que se ingresó al chat.
 local function APTweaksOnCommandEntered(player, chat, textEntry)
 
+    -- Limpiar líneas vacías si el jugador no las tiene permitidas.
+    if not getPlayer():getRole():hasCapability(Capability.EmptyLinesInChat) then
+        textEntry = textEntry:gsub("[\n\r]", " ")
+    end
+
     -- Validar entrada de texto.
     if not textEntry or textEntry == "" or textEntry == " " then return end
 
@@ -211,6 +217,9 @@ local function APTweaksOnCommandEntered(player, chat, textEntry)
             break
         end
     end
+
+    -- Reiniciar estado AFK del jugador.
+    resetAfkStatus(player)
 
     -- Validar coincidencia y pestaña.
     if not commandString or (chat.currentTabID ~= commandData.tabID) then return end

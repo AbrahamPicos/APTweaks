@@ -3,27 +3,30 @@
 -- Maintainer: AbrahamPicos.
 
 local aptweaks, commands = require("APTweaks"), require("APTweaks_Server_Commands")
+local aptweaks_teleport = require("APTweaks_Server_Teleport")
 
 local modID = aptweaks.modID
 local aptweaks_temp = aptweaks.aptweaks_temp
 
 local SetupData = aptweaks.SetupData
 local processCommandResult = aptweaks.processCommandResult
+local WarpCommand = commands.WarpCommand
 local SafezoneCommand = commands.SafezoneCommand
 local TeleportCommand = commands.TeleportCommand
-local WarpCommand = commands.WarpCommand
 local ClearDataCommand = commands.ClearDataCommand
+local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
 
 local Events = aptweaks.Events
 local SafeHouse = aptweaks.SafeHouse
 local getConnectedPlayers = aptweaks.getConnectedPlayers
+local getPlayerFromUsername = aptweaks.getPlayerFromUsername
 
--- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod rastrea conexiones y desconexiones.
-aptweaks_temp.onlinePlayers = aptweaks_temp.onlinePlayers or {}
--- El submapa de los clientes que se están teletransportando en este momento.
-aptweaks_temp.teleport = aptweaks_temp.teleport or {}
 -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
 aptweaks_temp.blocked = aptweaks_temp.blocked or {}
+-- El submapa de los clientes que se están teletransportando en este momento.
+aptweaks_temp.teleport = aptweaks_temp.teleport or {}
+-- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod rastrea conexiones y desconexiones.
+aptweaks_temp.onlinePlayers = aptweaks_temp.onlinePlayers or {}
 
 local onlinePlayers = aptweaks_temp.onlinePlayers
 local client_commands = {
@@ -121,8 +124,6 @@ local function OnTick(tick)
 
             AftherPlayerConnected(player)
         end
-
-        --updatePlayerStatus(username, tick)
     end
 
     -- Por cada jugador conectado el tick anterior.
@@ -137,10 +138,10 @@ local function OnTick(tick)
     end
 
     -- Por cada cliente en teletransporte.
-    for _, teleport in pairs(aptweaks_temp.teleport) do
+    for username, teleport in pairs(aptweaks_temp.teleport) do
 
-        if teleport.time > 6000 then
-            TeleportEndsCommand()
+        if (getTimestampMs() - teleport.time) >= 6000 then
+            teleportEndsCommand(getPlayerFromUsername(username), teleport, {status = "failed"})
         end
     end
 

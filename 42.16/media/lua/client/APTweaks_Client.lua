@@ -8,9 +8,9 @@ local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
 local client_flags = aptweaks.client_flags
 
-local setTimer = aptweaks.setTimer
-local getTimerCycle = aptweaks.getTimerCycle
 local getTimerUpdate = aptweaks.getTimerUpdate
+local resetAfkStatus = aptweaks.resetAfkStatus
+local resetTeleportStatus = aptweaks.resetTeleportStatus
 local SafezoneCommand = serverCommands.SafezoneCommand
 local TeleportCommand = serverCommands.TeleportCommand
 local PlayerConnectedCommand = serverCommands.PlayerConnectedCommand
@@ -18,7 +18,6 @@ local PlayerDisconnectedCommand = serverCommands.PlayerDisconnectedCommand
 local processCommandResult = aptweaks.processCommandResult
 
 local Events = aptweaks.Events
-local ModData = aptweaks.ModData
 local getText = aptweaks.getText
 local getCore = aptweaks.getCore
 local isClient = aptweaks.isClient
@@ -71,37 +70,8 @@ local function OnServerCommand(module, command, args)
     end
 end
 
--- Reinicia el estado AFK del cliente.
----@param player table|nil El IsoPlayer asociado al cliente.
-local function resetAfkStatus(player)
-    -- Restablecer timer
-    setTimer("afk")
-
-    -- Validar si pasó suficiente tiempo para tener que notificar al usuario.
-    if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
-        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
-    end
-end
-
--- Restablece el estado de teletransporte del cliente.
----@param player table El IsoPlayer asociado al cliente.
----@param teleporting table Una referencia a la tabla de teletransporte del cliente (optimización).
-local function resetTeleportStatus(player, teleporting)
-    -- restablecer timer y notificar al usuario.
-    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
-    setTimer("teleport")
-
-    -- Validar que aún no se haya enviado una solicitud al servidor. Si se hizo, cambiar estado a cancelado y salir.
-    if teleporting.status == "requested" then
-        teleporting.status = "cancelled"
-        return
-    end
-
-    -- Limpiar teletransporte.
-    client_flags.teleporting = nil
-end
-
 -- Actualiza el estado AFK del cliente.
+-- Esto sóĺo funciona antes y después de la pantalla de carga. Aún no encuentro una forma de que funcione durante.
 ---@param player table|nil El IsoPlayer asociado al cliente.
 ---@param deltaTime number La fracción de segundo que transcurrió desde el último tick.
 local function updateAfkStatus(player, deltaTime)
@@ -126,7 +96,7 @@ local function updateAfkStatus(player, deltaTime)
     if seconds ~= (APTweaksVars.AfkStart + APTweaksVars.AfkKick) then return end
 
     -- Expulsar.
-    if not player then -- Si aún está en el menú principal. Lamentablemente no funciona durante la pantalla de carga.
+    if not player then -- Si aún está en el menú principal.
         getCore():quit()
         return
     end
@@ -226,9 +196,12 @@ Events.OnServerCommand.Add(OnServerCommand)
 Events.OnAddMessage.Add(OnAddMessage)
 
 -- Añadir la lógica necesaria del lado del servidor para manejar el teleportCooldown.
+-- Tal vez sea mejor usar timers con callbacks para la función OnTick.
 -- Revisar si puedo usar algún método como IsoPlayer.getSpeed para comprobar el movimento, en lugar de lo que hago ahora.
 --- Hay un evento de movimiento.
--- Que el sistema anti-AFK no expulse si estás leyendo, subiendo sastrería, o escribiste en el chat.
+-- Que el sistema anti-AFK no expulse si estás leyendo o subiendo sastrería.
 -- Que el sistema anti-AFK pueda expulsar durante la pantalla de carga (muy complicado).
+--- Quizá pueda hacerse del lado del servidor, ya que el jugador aparece del lado del servidor poco antes.
+--- No puedo trasladar todo el sistema al servidor, porque no funcionaría durante la pantalla de creación de personaje.
 -- Que la teletransportación se cancele si provocas o recibes daño.
--- que la teletransportación no se cancele cuando el jugador intente ver a su alrededor (muy complicado).
+-- Que la teletransportación no se cancele cuando el jugador intente ver a su alrededor (muy complicado).

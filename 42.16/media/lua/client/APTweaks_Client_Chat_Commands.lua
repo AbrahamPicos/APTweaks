@@ -103,8 +103,6 @@ function chatCommands.WarpCommand(player, args)
         return {text = getText("IGUI_APTweaks_Chat_AlreadyExecuting")}
     end
 
-    player:setHaloNote("Espere un momento...", 0, 255, 0, 500)
-
     return {command = "TeleportCommand", data = {status = "begins", name = warp}}
 end
 

@@ -44,6 +44,7 @@ local aptweaks = {
     sendServerCommand = sendServerCommand,
     getConnectedPlayers = getConnectedPlayers,
     alreadyHaveSafehouse = alreadyHaveSafehouse,
+    getPlayerFromUsername = getPlayerFromUsername,
 
     -- Referencias a variables globales de Project Zomboid.
 
@@ -57,7 +58,22 @@ local sendClientCommand = aptweaks.sendClientCommand
 local sendServerCommand = aptweaks.sendServerCommand
 
 local modID = aptweaks.modID
+local APTweaksVars = aptweaks.APTweaksVars
+local client_flags = aptweaks.client_flags
 local aptweaks_temp = aptweaks.aptweaks_temp
+
+-- Establece o respablece un timer.
+---@param name string El nombre del timer.
+local function setTimer(name)
+    aptweaks_temp.timers[name] = {justAdded = true, counter = 0, cycles = 0}
+end
+
+-- Obtiene el ciclo actual de un timer.
+---@param name string El nombre del timer.
+---@return number cycle El número de ciclo.
+local function getTimerCycle(name)
+    return aptweaks_temp.timers[name].cycles
+end
 
 -- Instancia un ChatMessge falso para usarlo con la función `ISChat.addLineInChat`.
 ---@param size string El tamaño del texto. Puede cambiarse luego con setSize(). Puede ser "small", "medium", y "large".
@@ -83,20 +99,6 @@ local function getFakeChatMessage(size, text, author, isShowAuthor)
         setSize = function (self, newSize) size = newSize end,
         setText = function (self, newText) text = newText end
     }
-end
-
--- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).
----@param t table La tabla que se verificará. Cualquier cosa que no sea una tabla se conciderará vacía.
----@return boolean isEmpty Si la tabla estaba vacía.
-function aptweaks.isTableEmpty(t)
-
-    if type(t) ~= "table" then return true end
-
-    for _ in pairs(t) do
-        return false
-    end
-
-    return true
 end
 
 -- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
@@ -143,19 +145,6 @@ function aptweaks.processCommandResult(player, result, provider)
     end
 end
 
--- Establece o respablece un timer.
----@param name string El nombre del timer.
-function aptweaks.setTimer(name)
-    aptweaks_temp.timers[name] = {justAdded = true, counter = 0, cycles = 0}
-end
-
--- Obtiene el ciclo actual de un timer.
----@param name string El nombre del timer.
----@return number cycle El número de ciclo.
-function aptweaks.getTimerCycle(name)
-    return aptweaks_temp.timers[name].cycles
-end
-
 -- Actualiza un timer, y devuelve sus variables.
 ---@param name string El nombre del timer.
 ---@param time number El tiempo que se añadirá al timer.
@@ -177,10 +166,52 @@ function aptweaks.getTimerUpdate(name, time)
     return timer.cycles, isCycleUpdate
 end
 
--- Inicializar timers.
-if isClient() then
-    local setTimer = aptweaks.setTimer
+-- Verifica si una tabla está vacía (ya que `next` no funciona en Project Zomboid).
+---@param t table La tabla que se verificará. Cualquier cosa que no sea una tabla se conciderará vacía.
+---@return boolean isEmpty Si la tabla estaba vacía.
+function aptweaks.isTableEmpty(t)
 
+    if type(t) ~= "table" then return true end
+
+    for _ in pairs(t) do
+        return false
+    end
+
+    return true
+end
+
+-- Reinicia el estado AFK del cliente.
+---@param player table|nil El IsoPlayer asociado al cliente.
+function aptweaks.resetAfkStatus(player)
+    -- Restablecer timer
+    setTimer("afk")
+
+    -- Validar si pasó suficiente tiempo para tener que notificar al usuario.
+    if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
+        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
+    end
+end
+
+-- Restablece el estado de teletransporte del cliente.
+---@param player table El IsoPlayer asociado al cliente.
+---@param teleporting table Una referencia a la tabla de teletransporte del cliente (optimización).
+function aptweaks.resetTeleportStatus(player, teleporting)
+    -- restablecer timer y notificar al usuario.
+    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
+    setTimer("teleport")
+
+    -- Validar que aún no se haya enviado una solicitud al servidor. Si se hizo, cambiar estado a cancelado y salir.
+    if teleporting.status == "requested" then
+        teleporting.status = "cancelled"
+        return
+    end
+
+    -- Limpiar teletransporte.
+    client_flags.teleporting = nil
+end
+
+-- Inicializar timers y devolver tabla.
+if isClient() then
     aptweaks_temp.timers = {}
 
     setTimer("afk"); setTimer("teleport")
