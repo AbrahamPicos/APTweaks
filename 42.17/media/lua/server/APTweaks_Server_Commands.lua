@@ -16,30 +16,40 @@ local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
 local teleportBeginsCommand = aptweaks_teleport.teleportBeginsCommand
 local teleportRequestedCommand = aptweaks_teleport.teleportRequestedCommand
 
--- i.
+-- La parte de la lógica del sistema de teletransporte procesada del lado del servidor.
 ---@param player table El jugador asociado al cliente.
 ---@param args table los argumentos del comando.
----@return table|nil result 
-function commands.TeleportCommand(player, args) -- args = name = name, status = status}
+---@return table|nil result
+function commands.TeleportCommand(player, args) -- args = {name = name, status = status}
     local teleport = aptweaks_temp.teleport[player:getUsername()]
     local aptweaks_data = aptweaks.aptweaks_data
+    local status = args.status
     local data
 
-    if args.status == "begins" then
+    -- Si es un paquete begins.
+    if status == "begins" then
         data = teleportBeginsCommand(player, teleport, aptweaks_data, args)
 
-    elseif args.status == "requested" then
-        data = teleportRequestedCommand(player, teleport, aptweaks_data, args)
+    -- Si el cliente envió antes un paquete begins.
+    elseif not teleport then
 
-    elseif args.status == "succeded" or args.status == "failed" then
-        teleportEndsCommand(player, teleport, args)
-        return
+        -- si el paquete es requested.
+        if status == "requested" then
+            data = teleportRequestedCommand(player, teleport)
+
+        -- Si el paquete es succeded o failed.
+        elseif status == "succeded" or status == "failed" then
+            teleportEndsCommand(player, teleport, args)
+            return -- El cliente no espera respuesta en este caso.
+        end
     end
 
+    -- Si hubo una inconsistencia grave, responder con un paquete denied vacío.
     if not data then
         data = {status = "denied"}
     end
 
+    -- Terminar.
     return {command = "TeleportCommand", data = data}
 end
 
@@ -148,6 +158,19 @@ function commands.ClearDataCommand(player) -- args = {}
     SetupData(true) -- Esto realmente lo elimina todo.
 
     return {text = "Todos los datos de APTweaks han sido eliminados."}
+end
+
+-- Controla si el jugador debe expulsarse por pasar demasiado tiempo existiendo sin notificar que salió de la pantalla de carga.
+---@param player table
+---@param args table
+function commands.AfkAsistCommand(player, args)
+
+    if args.start then
+        aptweaks_temp.afk[player:getUsername()] = getTimestampMs()
+
+    else
+        aptweaks_temp.afk[player:getUsername()] = nil
+    end
 end
 
 return commands

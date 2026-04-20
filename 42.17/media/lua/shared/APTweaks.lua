@@ -7,7 +7,7 @@
 local aptweaks = {
     -- La ID del mod.
     modID = "com.github.abrahampicos.aptweaks",
-    -- Variables para el jugador controladas por el evento tick. Son útiles para el comando warp y el sistema AFK.
+    -- Banderas para el cliente controladas por el evento tick. Son útiles para el comando warp y el sistema AFK.
     client_flags = {},
     -- Datos varios que APTweaks necesita en tiempo de ejecución.
     aptweaks_temp = {},
@@ -16,6 +16,7 @@ local aptweaks = {
 
     -- Referencias a clases Java de Project Zomboid.
 
+    Color = Color,
     Events = Events,
     ModData = ModData,
     GameTime = GameTime,
@@ -52,8 +53,10 @@ local aptweaks = {
     APTweaksVars = SandboxVars.APTweaks
 }
 
+local addRole = aptweaks.addRole
 local isClient = aptweaks.isClient
 local isServer = aptweaks.isServer
+local getRoles =  aptweaks.getRoles
 local sendClientCommand = aptweaks.sendClientCommand
 local sendServerCommand = aptweaks.sendServerCommand
 
@@ -79,7 +82,7 @@ end
 ---@param size string El tamaño del texto. Puede cambiarse luego con setSize(). Puede ser "small", "medium", y "large".
 ---@param text string El texto del mensaje.
 ---@param author string El nombre del autor del mensaje.
----@param isShowAuthor any Si debe mostrarse el nombre del autor en el mensaje: Ejem: "[AbrahamPicos]: Este es un mensaje.".
+---@param isShowAuthor boolean Si debe mostrarse el nombre del autor en el mensaje: Ejem: "[AbrahamPicos]: Este es un mensaje.".
 ---@return table ChatMessage Una tabla que simula ser una instancia de zombie.chat.ChatMessage, con algunos de sus métodos.
 local function getFakeChatMessage(size, text, author, isShowAuthor)
     return {
@@ -99,6 +102,25 @@ local function getFakeChatMessage(size, text, author, isShowAuthor)
         setSize = function (self, newSize) size = newSize end,
         setText = function (self, newText) text = newText end
     }
+end
+
+-- Devuélve la lista de warps disponibles en forma de string.
+---@param warps table El mapa con los warps existentes.
+---@return string aviableWarps Un string con saltos de línea compatible con el chat de Project Zomboid.
+function aptweaks.showWarps(warps)
+    local aviableWarps = "<LINE>"
+    local index = 0
+
+    for warp, _ in pairs(warps) do
+        index = index + 1
+        aviableWarps = aviableWarps .. "* " .. tostring(warp)
+
+        if index < #warps then
+            aviableWarps = aviableWarps .. "<LINE>"
+        end
+    end
+
+    return aviableWarps
 end
 
 -- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
@@ -121,7 +143,7 @@ function aptweaks.SetupData(reset)
 end
 
 -- Procesa la respuesta de todos los comandos de APTweaks cuando son usados a travez de APTweaks.
----@param player table Un objeto IsoPlayer.
+---@param player table Un IsoPlayer.
 ---@param result table La tabla con el resultado del comando.
 ---@param provider string El proovedor de comando. Se usa para enviar comandos.
 function aptweaks.processCommandResult(player, result, provider)
@@ -208,6 +230,41 @@ function aptweaks.resetTeleportStatus(player, teleporting)
 
     -- Limpiar teletransporte.
     client_flags.teleporting = nil
+end
+
+-- Devuélve si un rol es el rol por defecto para los nuevos usaurios.
+---@param role table
+---@return boolean|nil isDefault
+function aptweaks.isRoleUsersDefault(role)
+
+    if not role:isReadOnly() then return false end
+
+    local defaults = role:getDefaults()
+
+    for i = 0, defaults:size() - 1 do
+        local string = defaults:get(i)
+
+        if string == "user" then
+            return true
+        end
+    end
+end
+
+-- crea y devuélve un nuevo rol.
+---@param name string
+---@return table|nil role
+function aptweaks.getNewRole(name)
+    local roles = getRoles()
+
+    addRole(name)
+
+    for i = 0, roles:size() - 1 do
+        local role = roles:get(i)
+
+        if role:getName() == name then
+            return role
+        end
+    end
 end
 
 -- Inicializar timers y devolver tabla.

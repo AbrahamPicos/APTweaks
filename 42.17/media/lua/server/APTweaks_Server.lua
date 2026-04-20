@@ -7,20 +7,26 @@ local aptweaks_teleport = require("APTweaks_Server_Teleport")
 
 local modID = aptweaks.modID
 local aptweaks_temp = aptweaks.aptweaks_temp
+local APTweaksVars = aptweaks.APTweaksVars
 
 local SetupData = aptweaks.SetupData
 local processCommandResult = aptweaks.processCommandResult
 local WarpCommand = commands.WarpCommand
+local AfkAsistCommand = commands.AfkAsistCommand
 local SafezoneCommand = commands.SafezoneCommand
 local TeleportCommand = commands.TeleportCommand
 local ClearDataCommand = commands.ClearDataCommand
 local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
 
+local Color = aptweaks.Color
 local Events = aptweaks.Events
 local SafeHouse = aptweaks.SafeHouse
 local getConnectedPlayers = aptweaks.getConnectedPlayers
-local getPlayerFromUsername = aptweaks.getPlayerFromUsername
 
+-- El submapa de los jugadores que están en la pantalla de carga.
+aptweaks_temp.afk = aptweaks_temp.afk or {}
+-- El submapa de los jugadres pateados.
+aptweaks_temp.kicked = aptweaks_temp.kicked or {}
 -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
 aptweaks_temp.blocked = aptweaks_temp.blocked or {}
 -- El submapa de los clientes que se están teletransportando en este momento.
@@ -31,6 +37,9 @@ aptweaks_temp.onlinePlayers = aptweaks_temp.onlinePlayers or {}
 local onlinePlayers = aptweaks_temp.onlinePlayers
 local client_commands = {
 
+    AfkAsistCommand = {
+        handler = function (player, args) return AfkAsistCommand(player, args) end
+    },
     ClearDataCommand = {
         handler = function (player, _) return ClearDataCommand(player) end
     },
@@ -48,6 +57,17 @@ local client_commands = {
     }
 }
 
+-- Devuelve un rol de kick para un jugador.
+---@param player table
+---@return table|nil role
+local function getPlayerKickRole(player)
+    local name = "APTweaks_Kick_" .. player:getUsername()
+    local newRole = aptweaks.getNewRole(name)
+
+    setupRole(newRole, "A temporary APTweaks Kick role", Color.red, {})
+    return newRole
+end
+
 -- En el evento OnInitGlobalModData. Crea el mapa de Datos de APTweaks.
 -- Este también es un buen punto para purgar datos.
 ---@param isNewGame boolean Si GlobalModData se inicializa en un nuevo guardado.
@@ -56,11 +76,11 @@ local function OnInitGlobalModData(isNewGame)
 
     SetupData(false)
 
-    -- Eliminar los roles de APTwekas rezagados. Esto puede pasar si el servidor se apaga incorrectamente.
+    -- Eliminar los roles de APTweaks rezagados. Esto puede pasar si el servidor se apaga incorrectamente.
     for i = 0, roles:size() - 1 do
         local role = roles:get(i)
 
-        if luautils.stringStarts(role:getName(), "APTweaks_Teleport") then
+        if luautils.stringStarts(role:getName(), "APTweaks_") then
             deleteRole(role) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
         end
     end
@@ -86,30 +106,12 @@ local function OnClientCommand(module, command, player, args)
     end
 end
 
--- Ejecuta acciones cuando un jugador se conecta al servidor.
----@param player table
-local function AftherPlayerConnected(player)
-    -- Notificar de la conexión a todos los clientes
-    sendServerCommand(modID, "PlayerConnected", {username = player:getUsername()})
-end
-
--- Ejecuta acciones cuando un jugador se desconectó del servidor.
----@param username string
-local function AftherPlayerDisconected(username)
-    -- Notificar de la desconexión a todos los clientes.
-    sendServerCommand(modID, "PlayerDisconnected", {username = username})
-
-    -- Si el jugador tenía un área bloqueada, desbloquear.
-    if aptweaks_temp.blocked[username] then
-        aptweaks_temp.blocked[username] = nil
-    end
-end
-
 -- En el evento OnTick.
+-- Rastrea conexiones y desconexiones de jugadores, y controla rutinas secundarias.
 ---@param tick integer El tick actual.
 local function OnTick(tick)
-    local currentPlayers = {}
     local players = getConnectedPlayers()
+    local currentPlayers = {}
 
     -- Por cada jugador conectado.
     for i = 0, players:size() - 1 do
@@ -122,7 +124,8 @@ local function OnTick(tick)
         if not onlinePlayers[username] then
             onlinePlayers[username] = player
 
-            AftherPlayerConnected(player)
+            -- Notificar de la conexión a todos los clientes
+            sendServerCommand(modID, "PlayerConnected", {username = player:getUsername()})
         end
     end
 
@@ -133,15 +136,62 @@ local function OnTick(tick)
         if not currentPlayers[username] then
             onlinePlayers[username] = nil
 
-            AftherPlayerDisconected(username)
+            -- Si el jugador tenía un área bloqueada, desbloquear.
+            if aptweaks_temp.blocked[username] then
+                aptweaks_temp.blocked[username] = nil
+            end
+
+            -- Si el jugador estaba en teletransporte, terminar.
+            if aptweaks_temp.teleport[username] then
+                teleportEndsCommand(username, aptweaks_temp.teleport[username], {status = "failed"})
+            end
+
+            -- Si el jugador estaba en la pantalla de carga, remover.
+            if aptweaks_temp.afk[username] then
+                aptweaks_temp.afk[username] = nil
+            end
+
+            local kick = aptweaks_temp.kicked[username]
+
+            -- Si el jugador fue expulsado, eiminar rol de kick.
+            if kick then
+                deleteRole(kick)
+
+                aptweaks_temp.kicked[username] = nil
+            end
+
+            -- Notificar de la desconexión a todos los clientes.
+            sendServerCommand(modID, "PlayerDisconnected", {username = username})
         end
     end
 
-    -- Por cada cliente en teletransporte.
+    -- Por cada usuario en teletransporte.
     for username, teleport in pairs(aptweaks_temp.teleport) do
 
+        -- Si exedió el tiempo límite, terminar.
         if (getTimestampMs() - teleport.time) >= 6000 then
-            teleportEndsCommand(getPlayerFromUsername(username), teleport, {status = "failed"})
+            teleportEndsCommand(onlinePlayers[username] or username, teleport, {status = "failed"})
+        end
+    end
+
+    -- Por cada jugador en la pantalla de carga.
+    for username, time in pairs(aptweaks_temp.afk) do
+
+        -- Si exedió el tiempo límite, expulsar.
+        if (getTimestampMs() - time) >= ((APTweaksVars.AfkStart + APTweaksVars.AfkKick) * 1000) then
+            local player = onlinePlayers[username]
+
+            if onlinePlayers[username] then
+                local kickRole = getPlayerKickRole(player)
+
+                if kickRole then
+                    player:setRole(kickRole)
+
+                    aptweaks_temp.kicked[username] = kickRole
+                end
+            end
+
+            aptweaks_temp.afk[username] = nil
         end
     end
 

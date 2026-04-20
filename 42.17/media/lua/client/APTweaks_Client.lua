@@ -2,6 +2,11 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
+-- El sistema Anti-AFK se quedará del lado del cliente para evitar sobrecargar el servidor sin que valga la pena.
+--- Incluso si estuviera del lado del servidor, podría burlarse fácilmente con una capturadra de teclas, o simplemente quedándose
+---  en la pantalla de creación de personaje para siempre al no tener un IsoPlayer asociado con el cual rastrearlo.
+--- Esto será imposible hasta que IndieStone decida permitir manipular conexiones del lado del servidor desde lua.
+
 local aptweaks, serverCommands = require("APTweaks"), require("APTweaks_Client_Commands")
 
 local modID = aptweaks.modID
@@ -43,12 +48,6 @@ local server_commands = {
         handler = function (_, args) return PlayerDisconnectedCommand(args) end
     } -- args = {username = username}
 }
-
--- En el evento OnGameStart.
--- Cachea el IsoPlayer asociado al cliente.
-local function OnGameStart()
-    client_flags.player = getPlayer()
-end
 
 -- En el evento OnServerCommand.
 -- Procesa los comandos enviados por APTweaks desde el servidor al cliente.
@@ -169,6 +168,27 @@ local function OnTickEvenPaused(tick)
     end
 end
 
+-- En el evento OnCreatePlayer.
+-- Notifica al servidor que debe manejar temporalmente el sistema anti-afk para este cliente.
+-- También cachea el IsoPlayer asociado al cliente para un acceso rápido. No cambia durante la misma sesión.
+---@param index integer El indice del nuevo jugador. 0 si es el asociado al cliente.
+---@param player table El IsoPlayer que fue instanciado localmente.
+local function OnCreatePlayer(index, player)
+
+    -- Si el nuevo jugador no es el asociado al cliente no hay nada que hacer.
+    if not index == 0 then return end -- El player 0 se instancia al entrar en la pantalla de carga.
+
+    client_flags.player = getPlayer()
+
+    sendClientCommand(player, modID, "AfkAsistCommand", {start = true})
+end
+
+-- En el evento OnGameStart.
+-- Notifica al servidor que debe dejar de manejar el sistema anti-afk para este cliente.
+local function OnGameStart()
+    sendClientCommand(client_flags.player, modID, "AfkAsistCommand", {start = false})
+end
+
 -- Intercepta y traduce los mensajes de muerte antes de que los vean los clientes.
 ---@param message table Un ChatMessage.
 ---@param tabId number La ID de la pestaña a la que fue añadido el mensaje.
@@ -189,9 +209,10 @@ local function OnAddMessage(message, tabId)
     end
 end
 
-Events.OnGameStart.Add(OnGameStart)
 Events.OnTickEvenPaused.Add(OnTickEvenPaused)
 Events.OnFETick.Add(OnTickEvenPaused)
+Events.OnCreatePlayer.Add(OnCreatePlayer)
+Events.OnGameStart.Add(OnGameStart)
 Events.OnServerCommand.Add(OnServerCommand)
 Events.OnAddMessage.Add(OnAddMessage)
 
@@ -200,8 +221,6 @@ Events.OnAddMessage.Add(OnAddMessage)
 -- Revisar si puedo usar algún método como IsoPlayer.getSpeed para comprobar el movimento, en lugar de lo que hago ahora.
 --- Hay un evento de movimiento.
 -- Que el sistema anti-AFK no expulse si estás leyendo o subiendo sastrería.
--- Que el sistema anti-AFK pueda expulsar durante la pantalla de carga (muy complicado).
---- Quizá pueda hacerse del lado del servidor, ya que el jugador aparece del lado del servidor poco antes.
---- No puedo trasladar todo el sistema al servidor, porque no funcionaría durante la pantalla de creación de personaje.
+-- Que el sistema anti-AFK pueda expulsar durante la pantalla de carga (muy complicado). *EN TRABAJO -AbrahamPicos*
 -- Que la teletransportación se cancele si provocas o recibes daño.
 -- Que la teletransportación no se cancele cuando el jugador intente ver a su alrededor (muy complicado).

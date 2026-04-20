@@ -10,26 +10,9 @@ local getText = aptweaks.getText
 local aptweaks_temp = aptweaks.aptweaks_temp
 local client_flags = aptweaks.client_flags
 
+local showWarps = aptweaks.showWarps
+
 aptweaks_temp.safezone = aptweaks_temp.safezone or {}
-
--- Devuélve la lista de warps disponibles en forma de string.
----@param warps table El mapa con los warps existentes.
----@return string aviableWarps Un string con saltos de línea compatible con el chat de Project Zomboid.
-local function showWarps(warps)
-    local aviableWarps = "<LINE>"
-    local index = 0
-
-    for warp, _ in pairs(warps) do
-        index = index + 1
-        aviableWarps = aviableWarps .. "* " .. tostring(warp)
-
-        if index < #warps then
-            aviableWarps = aviableWarps .. "<LINE>"
-        end
-    end
-
-    return aviableWarps
-end
 
 -- El comando `/aptweaks warp add|remove`.
 ---@param player table Un IsoPlayer.
