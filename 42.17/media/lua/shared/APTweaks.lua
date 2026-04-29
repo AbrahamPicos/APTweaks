@@ -53,7 +53,9 @@ local aptweaks = {
     APTweaksVars = SandboxVars.APTweaks
 }
 
+local ModData = aptweaks.ModData
 local addRole = aptweaks.addRole
+local getText = aptweaks.getText
 local isClient = aptweaks.isClient
 local isServer = aptweaks.isServer
 local getRoles =  aptweaks.getRoles
@@ -205,13 +207,14 @@ end
 -- Reinicia el estado AFK del cliente.
 ---@param player table|nil El IsoPlayer asociado al cliente.
 function aptweaks.resetAfkStatus(player)
-    -- Restablecer timer
-    setTimer("afk")
 
     -- Validar si pasó suficiente tiempo para tener que notificar al usuario.
     if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
         player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
     end
+
+    -- Restablecer timer
+    setTimer("afk")
 end
 
 -- Restablece el estado de teletransporte del cliente.
@@ -267,8 +270,39 @@ function aptweaks.getNewRole(name)
     end
 end
 
--- Inicializar timers y devolver tabla.
-if isClient() then
+-- Extiende una lista de streams con los elementos de otra.
+---@param destList table La lista de destino.
+---@param list table La lista cuyos elementos se copiarán a otra.
+---@param map table|nil Si los elementos deben añadirse también a un mapa vacío.
+function aptweaks.extendStreamsList(destList, list, map)
+
+    for _, value in ipairs(list) do
+        local exists = false
+
+        for _, destValue in ipairs(destList) do
+
+            if value.commmand == destValue.command or value.shortCommand == destValue.shortCommand then
+                exists = true
+                break
+            end
+        end
+
+        if exists then
+            print ("[ATWeaks (" .. value.provider .. ")] WARN: Stream already exists: "  .. value.name)
+            break
+        end
+
+        if map then
+            map[value.name] = value
+        end
+
+        table.insert(destList, value)
+    end
+end
+
+-- Inicializar timers, streams, y devolver APTweaks.
+if not isServer() then
+    aptweaks_temp.aptweaks_streams = {}
     aptweaks_temp.timers = {}
 
     setTimer("afk"); setTimer("teleport")

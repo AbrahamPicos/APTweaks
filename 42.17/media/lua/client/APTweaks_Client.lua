@@ -3,11 +3,11 @@
 -- Maintainer: AbrahamPicos.
 
 -- El sistema Anti-AFK se quedará del lado del cliente para evitar sobrecargar el servidor sin que valga la pena.
---- Incluso si estuviera del lado del servidor, podría burlarse fácilmente con una capturadra de teclas, o simplemente quedándose
+--- Incluso si estuviera del lado del servidor, podría burlarse fácilmente con una capturadora de teclas, o simplemente quedándose
 ---  en la pantalla de creación de personaje para siempre al no tener un IsoPlayer asociado con el cual rastrearlo.
 --- Esto será imposible hasta que IndieStone decida permitir manipular conexiones del lado del servidor desde lua.
 
-local aptweaks, serverCommands = require("APTweaks"), require("APTweaks_Client_Commands")
+local aptweaks, server_commands = require("APTweaks"), require("APTweaks_Client_Commands")
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
@@ -16,10 +16,6 @@ local client_flags = aptweaks.client_flags
 local getTimerUpdate = aptweaks.getTimerUpdate
 local resetAfkStatus = aptweaks.resetAfkStatus
 local resetTeleportStatus = aptweaks.resetTeleportStatus
-local SafezoneCommand = serverCommands.SafezoneCommand
-local TeleportCommand = serverCommands.TeleportCommand
-local PlayerConnectedCommand = serverCommands.PlayerConnectedCommand
-local PlayerDisconnectedCommand = serverCommands.PlayerDisconnectedCommand
 local processCommandResult = aptweaks.processCommandResult
 
 local Events = aptweaks.Events
@@ -29,25 +25,6 @@ local isClient = aptweaks.isClient
 local GameTime = aptweaks.GameTime
 local getPlayer = aptweaks.getPlayer
 local sendClientCommand = aptweaks.sendClientCommand
-
-local server_commands = {
-
-    MessageCommand = {
-        handler = function(_, args) return {text = args.text} end
-    }, -- args = {text = text}
-    SafezoneCommand = {
-        handler = function (player, args) return SafezoneCommand(player, args) end
-    }, -- args = {x = x, y = y, z = z}
-    TeleportCommand = {
-        handler = function (player, args) return TeleportCommand(player, args) end
-    }, -- args = {x = x, y = y, z = z, name = name} *DESACTUALIZADO*
-    PlayerConnected = {
-        handler = function (_, args) return PlayerConnectedCommand(args) end
-    }, -- args = {username = username}
-    playerDisconnected = {
-        handler = function (_, args) return PlayerDisconnectedCommand(args) end
-    } -- args = {username = username}
-}
 
 -- En el evento OnServerCommand.
 -- Procesa los comandos enviados por APTweaks desde el servidor al cliente.
@@ -129,7 +106,7 @@ local function updateTeleportStatus(player, deltaTime)
 
     -- si ya terminó el tiempo, notificar al usuario, y enviar solicitud de teletransporte al servidor.
     if seconds == APTweaksVars.TeleportDelay then
-        sendClientCommand(player, modID "TeleportCommand", {status = "requested"})
+        sendClientCommand(player, modID, "TeleportCommand", {status = "requested"})
         teleporting.status = "requested"
     end
 end
@@ -216,7 +193,7 @@ Events.OnGameStart.Add(OnGameStart)
 Events.OnServerCommand.Add(OnServerCommand)
 Events.OnAddMessage.Add(OnAddMessage)
 
--- Añadir la lógica necesaria del lado del servidor para manejar el teleportCooldown.
+-- Añadir la lógica necesaria del lado del servidor para manejar el teleportCooldown. *EN TRABAJO -AbrahamPicos*
 -- Tal vez sea mejor usar timers con callbacks para la función OnTick.
 -- Revisar si puedo usar algún método como IsoPlayer.getSpeed para comprobar el movimento, en lugar de lo que hago ahora.
 --- Hay un evento de movimiento.
@@ -224,3 +201,4 @@ Events.OnAddMessage.Add(OnAddMessage)
 -- Que el sistema anti-AFK pueda expulsar durante la pantalla de carga (muy complicado). *EN TRABAJO -AbrahamPicos*
 -- Que la teletransportación se cancele si provocas o recibes daño.
 -- Que la teletransportación no se cancele cuando el jugador intente ver a su alrededor (muy complicado).
+-- Probablemente sea mejor usar marcas de tiempo para el evento ontick.

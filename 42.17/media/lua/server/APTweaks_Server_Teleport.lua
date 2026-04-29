@@ -7,7 +7,9 @@
 local aptweaks, aptweaks_teleport = require("APTweaks"), {}
 
 local setupRole = aptweaks.setupRole
+local Capability = aptweaks.Capability
 local deleteRole = aptweaks.deleteRole
+local getTimestampMs = aptweaks.getTimestampMs
 
 local APTweaksVars = aptweaks.APTweaksVars
 local aptweaks_temp = aptweaks.aptweaks_temp
@@ -44,11 +46,22 @@ end
 ---@return table|nil data
 function aptweaks_teleport.teleportBeginsCommand(player, teleport, aptweaks_data, args)
 
-    -- Si el cliente ya tiene un teletransporte en curso, o el sistema está deshabilitado, no hay nada qué hacer.
-    if teleport or not APTweaksVars.TeleportSystemEnabled then return end
+    -- Si el sistema está deshabilitado, no hay nada qué hacer.
+    if not APTweaksVars.TeleportSystemEnabled then return end
+
+    -- Si el cliente ya tiene un teletransporte en curso, denegar solicitud.
+    if teleport then
+
+        -- Si está el cooldown, notificar tiempo restante.
+        if teleport.cooldown then
+            return {status = "denied", cooldown = math.abs(((getTimestampMs() - teleport.cooldown) / 1000) - APTweaksVars.TeleportCooldown)}
+        end
+
+        return
+    end
 
     local origin = {x = player:getX(), y = player:getY(), z = player:getZ()}
-    local name = args.name
+    local name = args.name or args.username
     local destination
 
     -- Si el cliente quiere teletransportarse a otro jugador.
@@ -72,8 +85,8 @@ function aptweaks_teleport.teleportBeginsCommand(player, teleport, aptweaks_data
     end
 
     -- Si se obtuvo un destino válido, proceder.
-    if destination then
-        aptweaks_data.teleport[player:getUsername()] = {origin = origin, destination = destination, time = getTimestampMs()}
+    if destination then -- Protección contra paquetes falsos.
+        aptweaks_temp.teleport[player:getUsername()] = {origin = origin, destination = destination, time = getTimestampMs(), name = name}
         return {status = "proceed"}
     end
 end
@@ -85,7 +98,7 @@ end
 function aptweaks_teleport.teleportRequestedCommand(player, teleport)
 
     -- Si el cliente envió el paquete demasiado rápido despùés del paquete begins, negar solicitud.
-    if (getTimestampMs() - teleport.time) <= ((APTweaksVars.teleportDelay * 1000) + 800) then return end
+    if (getTimestampMs() - teleport.time) <= ((APTweaksVars.TeleportDelay * 1000) + 800) then return end
 
     local x, y, z = player:getX(), player:getY(), player:getZ()
     local origin = teleport.origin
@@ -99,10 +112,12 @@ function aptweaks_teleport.teleportRequestedCommand(player, teleport)
     if not playerRole:hasCapability(Capability.UseFastMoveCheat) then
         local role = teleportRoleForPlayer(player, playerRole)
 
+        -- Si el jugador tenía un rol personalizado, denegar solicitud y notificar.
         if not role then
             return {status = "denied", dynamicRole = true}
         end
 
+        -- Registrar y aplica rol.
         aptweaks_temp.teleport.tempRole = role
 
         player:setRole(role)
@@ -116,6 +131,7 @@ end
 ---@param teleport table
 ---@param args table
 function aptweaks_teleport.teleportEndsCommand(player, teleport, args)
+    local expected = teleport.origin
     local username = player
 
     -- Si el cliente tenía un rol temporal, eliminar rol.
@@ -123,17 +139,21 @@ function aptweaks_teleport.teleportEndsCommand(player, teleport, args)
         deleteRole(teleport.tempRole)
     end
 
-    -- Si el jugador aún está presente.
+    -- Si la teletransportación fue exitosa, comprobar destino en lugar de origen, e iniciar cooldown.
+    if args.status == "succeded" then
+        aptweaks_temp.teleport[username].cooldown = getTimestampMs()
+        expected = teleport.destination
+
+    -- De lo contrario, remover teletransporte.
+    else
+        aptweaks_temp.teleport[username] = nil
+    end
+
+    local fX, fY, fZ = expected.x, expected.y, expected.z
+
+    -- Si el jugador aún está presente, comprobar localización.
     if type(player) == "table" then
-        local expected = teleport.origin
-
-        -- Si la teletransportación fue exitosa, debe comprobarse el destino en su lugar.
-        if args.status == "succeded" then
-            expected = teleport.destination
-        end
-
         local x, y, z = player:getX(), player:getY(), player:getZ()
-        local fX, fY, fZ = expected.x, expected.y, expected.z
 
         username = player:getUsername()
 
@@ -142,8 +162,6 @@ function aptweaks_teleport.teleportEndsCommand(player, teleport, args)
             player:setRole(aptweaks.getPlayerKickRole(player)) -- ERROR: Esto no está bien hecho.
         end
     end
-
-    aptweaks_temp.teleport[username] = nil
 end
 
 return aptweaks_teleport

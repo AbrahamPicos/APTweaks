@@ -2,20 +2,26 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
-local serverCommands, aptweaks = {}, require("APTweaks")
+local aptweaks = require("APTweaks")
 
-local showWarps = aptweaks.showWarps
 local client_flags = aptweaks.client_flags
 
 local getText = aptweaks.getText
 
+local showWarps = aptweaks.showWarps
+
 -- Muestra un mensaje cuando un jugador se conectó al servidor.
-function serverCommands.PlayerConnectedCommand(args)
+---@param args table
+---@return table result
+local function PlayerConnectedCommand(args)
     return {text = getText("IGUI_APTweaks_Chat_WellcomeMessage", args.username)}
 end
 
 -- Muestra un mensaje cuando un jugador se desconectó del servidor.
-function serverCommands.PlayerDisconnectedCommand(args)
+---comment
+---@param args table
+---@return table result
+local function PlayerDisconnectedCommand(args)
     return {text = getText("IGUI_APTweaks_Chat_FarewellMessage", args.username)}
 end
 
@@ -27,7 +33,7 @@ end
 ---@param player table
 ---@param args table
 ---@return table result
-function serverCommands.SafezoneCommand(player, args) --ESTO ESTA ROTO: Cambió en la B42.
+local function SafezoneCommand(player, args) --ESTO ESTA ROTO: Cambió en la B42.
     return {text = "Safehouse creada exitosamente."}
 end
 
@@ -35,11 +41,14 @@ end
 ---@param player table El jugador asociado al cliente.
 ---@param args table Los argumentos del comando.
 ---@return table|nil result El resultado del comando. Un mensaje, y un comando con sus argumentos según se requiera.
-function serverCommands.TeleportCommand(player, args)
+local function TeleportCommand(player, args)
     local status = args.status
 
-    -- Si el servidor indicó que debe continuar con el cooldown, no hay nada qué hacer.
-    if status == "proceed" then return end
+    -- Si el servidor indicó que debe continuar con el delay, no hay nada qué hacer.
+    if status == "proceed" then
+        client_flags.teleporting = {status = "begins"}
+        return
+    end
 
     local result = {}
 
@@ -82,4 +91,39 @@ function serverCommands.TeleportCommand(player, args)
     return result
 end
 
-return serverCommands
+-- Muestra los warps disponibles.
+---@param args table
+---@return table result
+local function WarpsCommand(args)
+    return {text = getText("IGUI_APTweaks_AviableWarps", showWarps(args.names))}
+end
+
+-- Devuélve un mensaje que se mostrará en el chat.
+---@param args table
+---@return table result
+local function MessageCommand(args)
+    return args
+end
+
+local server_commands = {
+    MessageCommand = { -- args = {text = text}
+        handler = function(_, args) return MessageCommand(args) end
+    },
+    SafezoneCommand = { -- args = {x = x, y = y, z = z}
+        handler = function (player, args) return SafezoneCommand(player, args) end
+    },
+    TeleportCommand = { -- args = {x = x, y = y, z = z, name = name} *DESACTUALIZADO*
+        handler = function (player, args) return TeleportCommand(player, args) end
+    },
+    PlayerConnected = { -- args = {username = username}
+        handler = function (_, args) return PlayerConnectedCommand(args) end
+    },
+    playerDisconnected = { -- args = {username = username}
+        handler = function (_, args) return PlayerDisconnectedCommand(args) end
+    },
+    WarpsCommand = { -- args = {names = names}
+        handler = function (_, args) return WarpsCommand(args) end
+    }
+}
+
+return server_commands

@@ -2,7 +2,7 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
-local aptweaks, commands = require("APTweaks"), require("APTweaks_Server_Commands")
+local aptweaks, client_commands = require("APTweaks"), require("APTweaks_Server_Commands")
 local aptweaks_teleport = require("APTweaks_Server_Teleport")
 
 local modID = aptweaks.modID
@@ -11,16 +11,16 @@ local APTweaksVars = aptweaks.APTweaksVars
 
 local SetupData = aptweaks.SetupData
 local processCommandResult = aptweaks.processCommandResult
-local WarpCommand = commands.WarpCommand
-local AfkAsistCommand = commands.AfkAsistCommand
-local SafezoneCommand = commands.SafezoneCommand
-local TeleportCommand = commands.TeleportCommand
-local ClearDataCommand = commands.ClearDataCommand
 local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
 
 local Color = aptweaks.Color
 local Events = aptweaks.Events
+local getRoles = aptweaks.getRoles
+local luautils = aptweaks.luautils
 local SafeHouse = aptweaks.SafeHouse
+local deleteRole = aptweaks.deleteRole
+local getTimestampMs = aptweaks.getTimestampMs
+local sendServerCommand = aptweaks.sendServerCommand
 local getConnectedPlayers = aptweaks.getConnectedPlayers
 
 -- El submapa de los jugadores que están en la pantalla de carga.
@@ -35,27 +35,6 @@ aptweaks_temp.teleport = aptweaks_temp.teleport or {}
 aptweaks_temp.onlinePlayers = aptweaks_temp.onlinePlayers or {}
 
 local onlinePlayers = aptweaks_temp.onlinePlayers
-local client_commands = {
-
-    AfkAsistCommand = {
-        handler = function (player, args) return AfkAsistCommand(player, args) end
-    },
-    ClearDataCommand = {
-        handler = function (player, _) return ClearDataCommand(player) end
-    },
-    WarpCommand = {
-        handler = function(player, args) return WarpCommand(player, args) end
-    },
-    SafezoneCommand = {
-        handler = function (player, args) return SafezoneCommand(player, args) end
-    },
-    TeleportCommand = {
-        handler = function (player, args) return TeleportCommand(player, args) end
-    },
-    Something = {
-        handler = function (_, _) return nil end
-    }
-}
 
 -- Devuelve un rol de kick para un jugador.
 ---@param player table
@@ -64,7 +43,7 @@ local function getPlayerKickRole(player)
     local name = "APTweaks_Kick_" .. player:getUsername()
     local newRole = aptweaks.getNewRole(name)
 
-    setupRole(newRole, "A temporary APTweaks Kick role", Color.red, {})
+    setupRole(newRole, "A temporary APTweaks Kick role", Color.red, {}) -- ?
     return newRole
 end
 
@@ -151,11 +130,9 @@ local function OnTick(tick)
                 aptweaks_temp.afk[username] = nil
             end
 
-            local kick = aptweaks_temp.kicked[username]
-
             -- Si el jugador fue expulsado, eiminar rol de kick.
-            if kick then
-                deleteRole(kick)
+            if aptweaks_temp.kicked[username] then
+                deleteRole(aptweaks_temp.kicked[username])
 
                 aptweaks_temp.kicked[username] = nil
             end
@@ -167,10 +144,20 @@ local function OnTick(tick)
 
     -- Por cada usuario en teletransporte.
     for username, teleport in pairs(aptweaks_temp.teleport) do
+        local actualTime = getTimestampMs()
 
-        -- Si exedió el tiempo límite, terminar.
-        if (getTimestampMs() - teleport.time) >= 6000 then
-            teleportEndsCommand(onlinePlayers[username] or username, teleport, {status = "failed"})
+        if not teleport.cooldown then
+
+            -- Si exedió el tiempo límite, terminar.
+            if (actualTime - teleport.time) >= 6000 then
+                teleportEndsCommand(onlinePlayers[username] or username, teleport, {status = "failed"})
+            end
+
+        else
+
+            if actualTime >= teleport.cooldown then
+                aptweaks_temp.teleport[username] = nil
+            end
         end
     end
 

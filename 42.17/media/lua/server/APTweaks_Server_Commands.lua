@@ -2,11 +2,10 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
-local aptweaks, commands = require("APTweaks"), {}
+local aptweaks = require("APTweaks")
 local aptweaks_safezones, aptweaks_teleport = require("APTweaks_Server_Safezones"), require("APTweaks_Server_Teleport")
 
-local aptweaks_temp = aptweaks.aptweaks_temp
-local APTweaksVars = aptweaks.APTweaksVars
+local getTimestampMs = aptweaks.getTimestampMs
 
 local SetupData = aptweaks.SetupData
 local addSafezoneCommand = aptweaks_safezones.addSafezoneCommand
@@ -16,11 +15,14 @@ local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
 local teleportBeginsCommand = aptweaks_teleport.teleportBeginsCommand
 local teleportRequestedCommand = aptweaks_teleport.teleportRequestedCommand
 
+local aptweaks_temp = aptweaks.aptweaks_temp
+local APTweaksVars = aptweaks.APTweaksVars
+
 -- La parte de la lógica del sistema de teletransporte procesada del lado del servidor.
 ---@param player table El jugador asociado al cliente.
 ---@param args table los argumentos del comando.
 ---@return table|nil result
-function commands.TeleportCommand(player, args) -- args = {name = name, status = status}
+local function TeleportCommand(player, args) -- args = {name = name, status = status}
     local teleport = aptweaks_temp.teleport[player:getUsername()]
     local aptweaks_data = aptweaks.aptweaks_data
     local status = args.status
@@ -57,7 +59,7 @@ end
 ---@param player table Un IsoPlayer.
 ---@param args table 
 ---@return table|nil result
-function commands.SafezoneCommand(player, args)
+local function SafezoneCommand(player, args)
 
     -- Si el sistema de safehuses sin edificios no está habilitado no hay nada qué hacer. 
     if not APTweaksVars.SafehouseSystemEnabled then return end
@@ -112,7 +114,7 @@ end
 ---@param player table El IsoPlayer asociado al cliente.
 ---@param args table
 ---@return table|nil result
-function commands.WarpCommand(player, args)
+local function WarpCommand(player, args)
     local aptweaks_data = aptweaks.aptweaks_data
     local warp = args.name
 
@@ -149,9 +151,14 @@ function commands.WarpCommand(player, args)
     end
 end
 
+-- Notifica al cliente la tabla de warps disponibles.
+local function WarpsCommand()
+    return {command = "WarpsCommand", data = {names = aptweaks.aptweaks_data.warps}}
+end
+
 -- Reinicia el mapa de datos de APTweaks a sus valores predeterminados.
 ---@return table|nil result
-function commands.ClearDataCommand(player) -- args = {}
+local function ClearDataCommand(player) -- args = {}
 
     if player:getAccessLevel() ~= "admin" and not APTweaksVars.CoopServerMode then return end
 
@@ -163,7 +170,7 @@ end
 -- Controla si el jugador debe expulsarse por pasar demasiado tiempo existiendo sin notificar que salió de la pantalla de carga.
 ---@param player table
 ---@param args table
-function commands.AfkAsistCommand(player, args)
+local function AfkAsistCommand(player, args)
 
     if args.start then
         aptweaks_temp.afk[player:getUsername()] = getTimestampMs()
@@ -173,4 +180,28 @@ function commands.AfkAsistCommand(player, args)
     end
 end
 
-return commands
+local client_commands = {
+    AfkAsistCommand = {
+        handler = function (player, args) return AfkAsistCommand(player, args) end
+    },
+    ClearDataCommand = {
+        handler = function (player, _) return ClearDataCommand(player) end
+    },
+    WarpCommand = {
+        handler = function(player, args) return WarpCommand(player, args) end
+    },
+    WarpsCommand = {
+        handler = function (_, _) return WarpsCommand() end
+    },
+    SafezoneCommand = {
+        handler = function (player, args) return SafezoneCommand(player, args) end
+    },
+    TeleportCommand = {
+        handler = function (player, args) return TeleportCommand(player, args) end
+    },
+    Something = {
+        handler = function (_, _) return nil end
+    }
+}
+
+return client_commands

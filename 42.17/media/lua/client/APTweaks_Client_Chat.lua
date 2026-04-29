@@ -4,7 +4,7 @@
 
 -- Este archivo sobrescribe múltiples funciones del juego base. No lo recargue si hay otros mods.
 
-local aptweaks, chatCommands = require("APTweaks"), require("APTweaks_Client_Chat_Commands")
+local aptweaks = require("APTweaks")
 
 aptweaks.ISChat = aptweaks.ISChat or ISChat -- El módulo APTweaks.lua está en "shared", donde no está disponible ISChat.
 
@@ -13,126 +13,26 @@ local client_flags = aptweaks.client_flags
 local aptweaks_temp = aptweaks.aptweaks_temp
 local legacy_functions = aptweaks.legacy_functions
 
-local WarpCommand = chatCommands.WarpCommand
-local WarpsCommand = chatCommands.WarpsCommand
-local ClaimCommand = chatCommands.ClaimCommand
-local APTweaksSafezoneCommand = chatCommands.APTweaksSafezoneCommand
-local APTweaksWarpCommand = chatCommands.APTweaksWarpCommand
-local processCommandResult = aptweaks.processCommandResult
 local resetAfkStatus = aptweaks.resetAfkStatus
+local extendStreamsList = aptweaks.extendStreamsList
+local processCommandResult = aptweaks.processCommandResult
 
 local Events = aptweaks.Events
 local ISChat = aptweaks.ISChat
-local isAdmin = aptweaks.isAdmin
 local getText = aptweaks.getText
 local Capability = aptweaks.Capability
-local isCoopHost = aptweaks.isCoopHost
 local doKeyPress = aptweaks.doKeyPress
 local getTimestampMs = aptweaks.getTimestampMs
 
+legacy_functions.addLineInChat = legacy_functions.addLineInChat or ISChat.addLineInChat
 legacy_functions.onSwitchStream = legacy_functions.onSwitchStream or ISChat.onSwitchStream
 legacy_functions.onCommandEntered = legacy_functions.onCommandEntered or ISChat.onCommandEntered
-legacy_functions.addLineInChat = legacy_functions.addLineInChat or ISChat.addLineInChat
 legacy_functions.updateChatPrefixSettings = legacy_functions.updateChatPrefixSettings or ISChat.updateChatPrefixSettings
 
 aptweaks_temp.aptweaks_commands = aptweaks_temp.aptweaks_commands or {}
 
 local luautils = aptweaks.luautils
-local APTweaksVars = aptweaks.APTweaksVars
 
--- Valida si se cumplen los requerimientos para la ejecución de un comando de chat de APTweaks.
----@param player table El IsoPlayer asociado al cliente.
----@param requires table La tabla con los requerimientos del comando.
----@return boolean canExecute Si el comando pasó la validacioń.
-local function canExecute(player, requires)
-
-    -- Validar personaje, permisos, y disponibilidad de sistemas.
-    if not player:isAlive() then return false end
-
-    if requires.admin and not (isCoopHost() or isAdmin()) then return false end
-
-    if requires.teleportSystem and not APTweaksVars.TeleportSystemEnabled then return false end
-
-    if requires.safehouseSystem and not APTweaksVars.SafehouseSystemEnabled then return false end
-
-    return true
-end
-
-aptweaks_temp.aptweaks_streams = aptweaks_temp.aptweaks_streams or {
-    {
-        name = "aptweaks",
-        provider = modID,
-        command = "/aptweaks ",
-        tabID = 1,
-        argc = {min = 1, max = 3},
-        usage = "IGUI_APTweaks_MainCommandUsage",
-        requires = {
-            admin = true,
-            checker = canExecute
-        },
-        subcommands = {
-            cleardata = {
-                argc = {max = 1},
-                usage = "IGUI_APTweaks_MainCommandUsage",
-                handler = function(_, _) return {command = "ClearDataCommand", data = {}} end
-            },
-            safezone = {
-                argc = {max = 2},
-                usage = "IGUI_APTweaks_MainCommandUsage_Safezone",
-                handler = function(player, args) return APTweaksSafezoneCommand(player, args[2]) end
-            },
-            warp = {
-                argc = {max = 3},
-                usage = "IGUI_APTweaks_MainCommandUsage_Warp",
-                handler = function(player, args) return APTweaksWarpCommand(player, args[2], args[3]) end
-            }}
-    }, {
-        name = "warp",
-        provider = modID,
-        command = "/warp ",
-        tabID = 1,
-        argc = {min = 1, max =1},
-        usage = "IGUI_APTweaks_WarpCommandUsage",
-        requires = {
-            teleportSystem = true,
-            checker = canExecute
-        },
-        handler = function(player, args) return WarpCommand(player, args) end
-    }, {
-        name = "warps",
-        provider = modID,
-        command = "/warps ",
-        tabID = 1,
-        usage = "IGUI_APTweaks_WarpsCommandUsage",
-        requires = {
-            teleportSystem = true,
-            checker = canExecute
-        },
-        handler = function(_, _) return WarpsCommand() end
-    }, {
-        name = "claim",
-        provider = modID,
-        command = "/claim ",
-        tabID = 1,
-        usage = "IGUI_APTweaks_ClaimCommandUsage",
-        requires = {
-            safehouseSystem = true,
-            checker = canExecute
-        },
-        handler = function(player, _) return ClaimCommand(player) end
-    }, {
-        name = "something",
-        provider = modID,
-        command = "/something ",
-        tabID = 1,
-        usage = "IGUI_APTweaks_SomethingCommandUsage",
-        requires = {
-            admin = true,
-            checker = canExecute
-        },
-        handler = function(_, _) return {command = "Something", data = {}} end
-    }
-}
 local aptweaks_streams = aptweaks_temp.aptweaks_streams
 local aptweaks_commands = aptweaks_temp.aptweaks_commands
 
@@ -190,7 +90,7 @@ end
 local function APTweaksOnCommandEntered(player, chat, textEntry)
 
     -- Limpiar líneas vacías si el jugador no las tiene permitidas.
-    if not getPlayer():getRole():hasCapability(Capability.EmptyLinesInChat) then
+    if not player:getRole():hasCapability(Capability.EmptyLinesInChat) then
         textEntry = textEntry:gsub("[\n\r]", " ")
     end
 
@@ -249,17 +149,17 @@ end
 ---@param curTxtPanel table Idk.
 local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
     local actualStreamIndex = curTxtPanel.streamID
-    local allChatStreams = curTxtPanel.chatStreams
+    local chatStreams = curTxtPanel.chatStreams
 
     -- Si el índice actual es exactamente el siguiente esperado, no hay nada que hacer.
     if actualStreamIndex == previousStreamIndex + 1 then return end
 
     -- Determinar el rango máximo de índices a evaluar.
-    local maxIndex = (actualStreamIndex == 1) and #allChatStreams or (actualStreamIndex - 1)
+    local maxIndex = (actualStreamIndex == 1) and #chatStreams or (actualStreamIndex - 1)
 
     -- Buscar coincidencia en APTweaks.
     for i = previousStreamIndex + 1, maxIndex do
-        local aptweaksCommand = aptweaks_commands[allChatStreams[i].name]
+        local aptweaksCommand = aptweaks_commands[chatStreams[i].name]
 
         if aptweaksCommand then
             local requires = aptweaksCommand.requires
@@ -342,29 +242,4 @@ ISChat.onSwitchStream = function ()
 end
 
 -- Registra los comandos en la clase Lua ISChat.
-Events.OnGameStart.Add(function()
-
-    for _, aptweaksCommand in ipairs(aptweaks_streams) do
-        local isAlready = false
-
-        for _, command in ipairs(ISChat.allChatStreams) do
-
-            if aptweaksCommand == command then
-                isAlready = true
-                break
-            end
-        end
-
-        if not isAlready then
-            table.insert(ISChat.allChatStreams, aptweaksCommand)
-        end
-
-        -- Añadir a un mapa para un acceso rápido.
-        aptweaks_commands[aptweaksCommand.name] = aptweaksCommand
-    end
-end)
-
--- Otros mods podrían usar esto si lo llaman como módulo y añaden a esta tabla sus propios comandos.
-return aptweaks_streams
-
--- Quizá sea mejor hacer que otros modders puedan lamar a APTweaks.lua en lugar de a esto.
+Events.OnGameStart.Add(function() extendStreamsList(ISChat.allChatStreams, aptweaks_streams, aptweaks_commands) end)
