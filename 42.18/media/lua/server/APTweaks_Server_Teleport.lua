@@ -41,25 +41,9 @@ end
 
 -- Ajusta los parámetros iniciales de la teletransportación, y notifica al cliente.
 ---@param player table
----@param aptweaks_data table
 ---@param args table
----@return table|nil data
-function aptweaks_teleport.teleportBeginsCommand(player, teleport, aptweaks_data, args)
-
-    -- Si el sistema está deshabilitado, no hay nada qué hacer.
-    if not APTweaksVars.TeleportSystemEnabled then return end
-
-    -- Si el cliente ya tiene un teletransporte en curso, denegar solicitud.
-    if teleport then
-
-        -- Si está el cooldown, notificar tiempo restante.
-        if teleport.cooldown then
-            return {status = "denied", cooldown = math.abs(((getTimestampMs() - teleport.cooldown) / 1000) - APTweaksVars.TeleportCooldown)}
-        end
-
-        return
-    end
-
+---@return table|nil data (nil si el paquete es malo)
+function aptweaks_teleport.teleportRequestCommand(player, args)
     local origin = {x = player:getX(), y = player:getY(), z = player:getZ()}
     local name = args.name or args.username
     local destination
@@ -77,6 +61,8 @@ function aptweaks_teleport.teleportBeginsCommand(player, teleport, aptweaks_data
 
     -- Si el cliente quiere teletransportarse a un warp.
     elseif args.name then
+        local aptweaks_data = aptweaks.aptweaks_data
+
         destination = aptweaks_data.warps[name]
 
         if not destination then
@@ -84,18 +70,18 @@ function aptweaks_teleport.teleportBeginsCommand(player, teleport, aptweaks_data
         end
     end
 
-    -- Si se obtuvo un destino válido, proceder.
-    if destination then -- Protección contra paquetes falsos.
+    -- Validar y proceder.
+    if destination then
         aptweaks_temp.teleport[player:getUsername()] = {origin = origin, destination = destination, time = getTimestampMs(), name = name}
         return {status = "proceed"}
     end
 end
 
--- Autoriza al cliente para teletransportarse, y le notifica.
+-- Autoriza al cliente para teletransportarse, y le notifica que comience.
 ---@param player table El jugador asociado al cliente.
 ---@param teleport table
 ---@return table|nil data
-function aptweaks_teleport.teleportRequestedCommand(player, teleport)
+function aptweaks_teleport.teleportStartCommand(player, teleport)
 
     -- Si el cliente envió el paquete demasiado rápido despùés del paquete begins, negar solicitud.
     if (getTimestampMs() - teleport.time) <= ((APTweaksVars.TeleportDelay * 1000) + 800) then return end
@@ -103,8 +89,11 @@ function aptweaks_teleport.teleportRequestedCommand(player, teleport)
     local x, y, z = player:getX(), player:getY(), player:getZ()
     local origin = teleport.origin
 
-    -- Si el jugador no está en la misma localización en la que estaba cuando se envió el paquete begins, no hay nada qué hacer.
-    if not (origin.x == x and origin.y == y and origin.z == z) then return end
+    -- Si el jugador no está en la misma localización en la que estaba cuando se envió el paquete begins, cancelar teletransporte.
+    if not (origin.x == x and origin.y == y and origin.z == z) then
+        aptweaks_temp.teleport[player:getUsername()] = nil
+        return -- ERROR: Recuerda eliminar la lógica sobrante del lado del cliente o el cliente se quedará esperando.
+    end
 
     local playerRole = player:getRole()
 
@@ -112,25 +101,26 @@ function aptweaks_teleport.teleportRequestedCommand(player, teleport)
     if not playerRole:hasCapability(Capability.UseFastMoveCheat) then
         local role = teleportRoleForPlayer(player, playerRole)
 
-        -- Si el jugador tenía un rol personalizado, denegar solicitud y notificar.
+        -- Si el jugador tenía un rol personalizado, denegar solicitud y notificar problema.
         if not role then
+            aptweaks_temp.teleport[player:getUsername()] = nil
             return {status = "denied", dynamicRole = true}
         end
 
         -- Registrar y aplica rol.
-        aptweaks_temp.teleport.tempRole = role
+        teleport.tempRole = role
 
         player:setRole(role)
     end
 
     return {status = "approved", destination = teleport.location}
-end
+end -- WARN: Busca una forma de eliminar el teletransporte aquí, si no procede, sin repetirte.
 
--- Remueve un teletransporte en curso.
+-- Remueve un teletransporte en curso. ESTA FUNCION ES FEA.
 ---@param player table|string El jugador asociado al cliente, o su nombre de usaurio.
 ---@param teleport table
----@param args table
-function aptweaks_teleport.teleportEndsCommand(player, teleport, args)
+---@param action string
+function aptweaks_teleport.teleportEndsCommand(player, teleport, action)
     local expected = teleport.origin
     local username = player
 
@@ -140,8 +130,8 @@ function aptweaks_teleport.teleportEndsCommand(player, teleport, args)
     end
 
     -- Si la teletransportación fue exitosa, comprobar destino en lugar de origen, e iniciar cooldown.
-    if args.status == "succeded" then
-        aptweaks_temp.teleport[username].cooldown = getTimestampMs()
+    if action == "succes" then
+        teleport.cooldown = getTimestampMs()
         expected = teleport.destination
 
     -- De lo contrario, remover teletransporte.
@@ -163,6 +153,40 @@ function aptweaks_teleport.teleportEndsCommand(player, teleport, args)
         end
     end
 end
+
+-- En el evento OnTick.
+-- Remueve el teletransporte de un usuario si alcanzó el tiempo límite, y maneja el teleport cooldown.
+---@param tick integer El tick actual.
+local function OnTick(tick)
+
+    -- Por cada usuario en teletransporte.
+    for username, teleport in pairs(aptweaks_temp.teleport) do
+        local actualTime = getTimestampMs()
+
+        -- Si el teletransporte está el cooldown, y se cumple el pazo, removerlo.
+        if teleport.cooldown and actualTime >= teleport.cooldown then
+            aptweaks_temp.teleport[username] = nil
+            return
+        end
+
+        -- Si exedió el tiempo límite de respuesta, remover teletransporte.
+        if (actualTime - teleport.time) >= 6000 then
+            aptweaks_teleport.teleportEndsCommand(aptweaks.onlinePlayers[username] or username, teleport, "fail")
+        end
+    end
+end
+
+-- Registrar las acciones requeridas en onPlayerDisconnected.
+aptweaks_temp.onPlayerDisconnected.APTweaksTeleport = function (username)
+
+    -- Si el jugador estaba en teletransporte, terminar.
+    if aptweaks_temp.teleport[username] then
+        aptweaks.teleportEndsCommand(username, aptweaks_temp.teleport[username], {status = "failed"})
+    end
+end
+
+-- Registrar la función OnTick en el evento, y devolver tabla.
+Events.OnTick.Add(OnTick)
 
 return aptweaks_teleport
 

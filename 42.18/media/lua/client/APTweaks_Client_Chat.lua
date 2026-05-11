@@ -9,7 +9,6 @@ local aptweaks = require("APTweaks")
 aptweaks.ISChat = aptweaks.ISChat or ISChat -- El módulo APTweaks.lua está en "shared", donde no está disponible ISChat.
 
 local modID = aptweaks.modID
-local client_flags = aptweaks.client_flags
 local aptweaks_temp = aptweaks.aptweaks_temp
 local legacy_functions = aptweaks.legacy_functions
 
@@ -34,6 +33,7 @@ aptweaks_temp.aptweaks_commands = aptweaks_temp.aptweaks_commands or {}
 local luautils = aptweaks.luautils
 
 local aptweaks_streams = aptweaks_temp.aptweaks_streams
+local client_flags = aptweaks_temp.client_flags
 local aptweaks_commands = aptweaks_temp.aptweaks_commands
 
 -- Despacha un comando de Chat de APTweaks.
@@ -174,6 +174,23 @@ local function APTweaksOnSwitchStream(previousStreamIndex, curTxtPanel)
     end
 end
 
+-- SOBRESCRIBIENDO UNA FUNCION VANILLA: updateChatPrefixSettings de la clase Lua ISChat.
+-- Actualiza el tamaño de letra en nuestros mensajes falsos.
+function ISChat:updateChatPrefixSettings()
+
+    for _, tab in ipairs(self.tabs) do
+
+        for _, msg in ipairs(tab.chatMessages) do
+
+            if msg.modID == modID then
+                msg:setSize(self.chatFont)
+            end
+        end
+    end
+
+    legacy_functions.updateChatPrefixSettings(self)
+end
+
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: AddLineInChat de la clase Lua ISChat.
 -- De ser necesario, corrige el bug de líneas infinitas que hay en el código vanilla.
 ---@param message table Un objeto ChatMessage, o uno que simule serlo.
@@ -203,23 +220,6 @@ ISChat.addLineInChat = function(message, tabID)
 
         chatText.chatMessages = newMessages
     end
-end
-
--- SOBRESCRIBIENDO UNA FUNCION VANILLA: updateChatPrefixSettings de la clase Lua ISChat.
--- Actualiza el tamaño de letra en nuestros mensajes falsos.
-function ISChat:updateChatPrefixSettings()
-
-    for _, tab in ipairs(self.tabs) do
-
-        for _, msg in ipairs(tab.chatMessages) do
-
-            if msg.modID == modID then
-                msg:setSize(self.chatFont)
-            end
-        end
-    end
-
-    legacy_functions.updateChatPrefixSettings(self)
 end
 
 -- SOBRESCRIBIENDO UNA FUNCION VANILLA: onCommandEntered de la clase Lua ISChat.

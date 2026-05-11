@@ -4,11 +4,21 @@
 
 local aptweaks = require("APTweaks")
 
-local client_flags = aptweaks.client_flags
-
 local getText = aptweaks.getText
 
 local showWarps = aptweaks.showWarps
+
+local commands = aptweaks.commands
+local aptweaks_temp = aptweaks.aptweaks_temp
+
+local text_handlers = {
+    [0] = function (s, _, _, _, _) return getText(s) end,
+    [1] = function (s, arg1, _, _, _) return getText(s, arg1) end,
+    [2] = function (s, arg1, arg2, _, _) return getText(s, arg1, arg2) end,
+    [3] = function (s, arg1, arg2, arg3, _) return getText(s, arg1, arg2, arg3) end,
+    [4] = function (s, arg1, arg2, arg3, arg4) return getText(s, arg1, arg2, arg3, arg4) end
+}
+local client_flags = aptweaks_temp.client_flags
 
 -- Muestra un mensaje cuando un jugador se conectó al servidor.
 ---@param args table
@@ -98,32 +108,33 @@ local function WarpsCommand(args)
     return {text = getText("IGUI_APTweaks_AviableWarps", showWarps(args.names))}
 end
 
--- Devuélve un mensaje que se mostrará en el chat.
+-- Devuélve un mensaje Internacionalizado.
 ---@param args table
 ---@return table result
 local function MessageCommand(args)
-    return args
+    local s = args.text
+    local subs = args.subs or {}
+    local text = text_handlers[#subs](s, subs[1], subs[2], subs[3], subs[4])
+
+    return {text = text}
 end
 
-local server_commands = {
-    MessageCommand = { -- args = {text = text}
-        handler = function(_, args) return MessageCommand(args) end
-    },
-    SafezoneCommand = { -- args = {x = x, y = y, z = z}
-        handler = function (player, args) return SafezoneCommand(player, args) end
-    },
-    TeleportCommand = { -- args = {x = x, y = y, z = z, name = name} *DESACTUALIZADO*
-        handler = function (player, args) return TeleportCommand(player, args) end
-    },
-    PlayerConnected = { -- args = {username = username}
-        handler = function (_, args) return PlayerConnectedCommand(args) end
-    },
-    playerDisconnected = { -- args = {username = username}
-        handler = function (_, args) return PlayerDisconnectedCommand(args) end
-    },
-    WarpsCommand = { -- args = {names = names}
-        handler = function (_, args) return WarpsCommand(args) end
-    }
+-- Registrar los comandos del cliente de APTweaks.
+commands.MessageCommand = { -- args = {text = text, subs = subs}
+    handler = function(_, args) return MessageCommand(args) end
 }
-
-return server_commands
+commands.SafezoneCommand = { -- args = {x = x, y = y, z = z}
+    handler = function (player, args) return SafezoneCommand(player, args) end
+}
+commands.TeleportCommand = { -- args = {x = x, y = y, z = z, name = name} *DESACTUALIZADO*
+    handler = function (player, args) return TeleportCommand(player, args) end
+}
+commands.PlayerConnected = { -- args = {username = username}
+    handler = function (_, args) return PlayerConnectedCommand(args) end
+}
+commands.playerDisconnected = { -- args = {username = username}
+    handler = function (_, args) return PlayerDisconnectedCommand(args) end
+}
+commands.WarpsCommand = { -- args = {names = names}
+    handler = function (_, args) return WarpsCommand(args) end
+}

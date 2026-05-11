@@ -69,6 +69,7 @@ function aptweaks_safezones.addSafezoneCommand(args, data) -- args = {x1 = pos1.
                 local area2 = data.areas[cellAreas[i]]
 
                 if area2 and not (x2 < area2.x1 or x1 > area2.x2 or y2 < area2.y1 or y1 > area2.y2) then
+                    --return {text = "IGUI_APTweaks_Chat_IndexingError", subs = {areaID}}
                     return {text = string.format("Ocurrio un error al indexar el area %s", areaID)}
                 end
             end
@@ -146,5 +147,34 @@ function aptweaks_safezones.removeSafezoneCommand(targetArea, data)
 
     return {text = string.format("El área %s fue removida exitosamente.", areaID)}
 end
+
+-- En el evento OnTick.
+-- Remueve el área bloqueada si se confirma que la safehouse apareció (obsoleto).
+---@param tick integer El tick actual.
+local function OnTick(tick)
+
+    -- Por cada área bloqueada.
+    for username, areaID in pairs(aptweaks_temp.blocked) do
+        local area = aptweaks.aptweaks_data.areas[areaID]
+        local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
+
+        -- Si la safehouse fue creada, desbloquear.
+        if SafeHouse.getSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1) then
+            aptweaks_temp.blocked[username] = nil
+        end
+    end
+end
+
+-- Registrar las acciones reueridas en onPlayerDisconnected.
+aptweaks_temp.onPlayerDisconnected.APTweaksSafezones = function (username)
+
+    -- Si el jugador tenía un área bloqueada, desbloquear.
+    if aptweaks_temp.blocked[username] then
+        aptweaks_temp.blocked[username] = nil
+    end
+end
+
+-- Registrar la función OnTick en el evento, y devolver tabla.
+Events.OnTick.Add(OnTick)
 
 return aptweaks_safezones

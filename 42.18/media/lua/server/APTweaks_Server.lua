@@ -2,37 +2,23 @@
 -- Licence: CC0-1.0(Visit https://creativecommons.org/publicdomain/zero/1.0/ to view details).
 -- Maintainer: AbrahamPicos.
 
-local aptweaks, client_commands = require("APTweaks"), require("APTweaks_Server_Commands")
-local aptweaks_teleport = require("APTweaks_Server_Teleport")
+local aptweaks = require("APTweaks")
 
 local modID = aptweaks.modID
 local aptweaks_temp = aptweaks.aptweaks_temp
 local APTweaksVars = aptweaks.APTweaksVars
 
 local SetupData = aptweaks.SetupData
-local processCommandResult = aptweaks.processCommandResult
-local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
+local OnCommand = aptweaks.OnCommand
 
 local Color = aptweaks.Color
 local Events = aptweaks.Events
 local getRoles = aptweaks.getRoles
 local luautils = aptweaks.luautils
-local SafeHouse = aptweaks.SafeHouse
 local deleteRole = aptweaks.deleteRole
 local getTimestampMs = aptweaks.getTimestampMs
 local sendServerCommand = aptweaks.sendServerCommand
 local getConnectedPlayers = aptweaks.getConnectedPlayers
-
--- El submapa de los jugadores que están en la pantalla de carga.
-aptweaks_temp.afk = aptweaks_temp.afk or {}
--- El submapa de los jugadres pateados.
-aptweaks_temp.kicked = aptweaks_temp.kicked or {}
--- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
-aptweaks_temp.blocked = aptweaks_temp.blocked or {}
--- El submapa de los clientes que se están teletransportando en este momento.
-aptweaks_temp.teleport = aptweaks_temp.teleport or {}
--- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod rastrea conexiones y desconexiones.
-aptweaks_temp.onlinePlayers = aptweaks_temp.onlinePlayers or {}
 
 local onlinePlayers = aptweaks_temp.onlinePlayers
 
@@ -62,26 +48,6 @@ local function OnInitGlobalModData(isNewGame)
         if luautils.stringStarts(role:getName(), "APTweaks_") then
             deleteRole(role) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
         end
-    end
-end
-
--- En el evento OnClientCommand.
--- Ejeuta acciones cuando un cliente envió un comando relevante para APTweaks.
----@param module string La ID del módulo que envió el comando.
----@param command string El comando es sí.
----@param player table El IsoPlayer asociado al cliente que envió el comando.
----@param args table Los argumentos del comando.
-local function OnClientCommand(module, command, player, args)
-
-    -- Si el módulo no coincide con APTweaks, no hay nada que hacer.
-    if module ~= modID then return end
-
-    -- Manejar comando.
-    local result = client_commands[command].handler(player, args)
-
-    -- Procesar el resultado.
-    if result then
-        processCommandResult(player, result, modID)
     end
 end
 
@@ -115,14 +81,8 @@ local function OnTick(tick)
         if not currentPlayers[username] then
             onlinePlayers[username] = nil
 
-            -- Si el jugador tenía un área bloqueada, desbloquear.
-            if aptweaks_temp.blocked[username] then
-                aptweaks_temp.blocked[username] = nil
-            end
-
-            -- Si el jugador estaba en teletransporte, terminar.
-            if aptweaks_temp.teleport[username] then
-                teleportEndsCommand(username, aptweaks_temp.teleport[username], {status = "failed"})
+            for _, task in ipairs(aptweaks.onPlayerConnected) do
+                task(username)
             end
 
             -- Si el jugador estaba en la pantalla de carga, remover.
@@ -139,25 +99,6 @@ local function OnTick(tick)
 
             -- Notificar de la desconexión a todos los clientes.
             sendServerCommand(modID, "PlayerDisconnected", {username = username})
-        end
-    end
-
-    -- Por cada usuario en teletransporte.
-    for username, teleport in pairs(aptweaks_temp.teleport) do
-        local actualTime = getTimestampMs()
-
-        if not teleport.cooldown then
-
-            -- Si exedió el tiempo límite, terminar.
-            if (actualTime - teleport.time) >= 6000 then
-                teleportEndsCommand(onlinePlayers[username] or username, teleport, {status = "failed"})
-            end
-
-        else
-
-            if actualTime >= teleport.cooldown then
-                aptweaks_temp.teleport[username] = nil
-            end
         end
     end
 
@@ -181,19 +122,8 @@ local function OnTick(tick)
             aptweaks_temp.afk[username] = nil
         end
     end
-
-    -- Por cada área bloqueada.
-    for username, areaID in pairs(aptweaks_temp.blocked) do
-        local area = aptweaks.aptweaks_data.areas[areaID]
-        local x1, y1, x2, y2 = area.x1, area.y1, area.x2, area.y2
-
-        -- Si la safehouse fue creada, desbloquear.
-        if SafeHouse.getSafeHouse(x1, y1, x2 - x1 + 1, y2 - y1 + 1) then
-            aptweaks_temp.blocked[username] = nil
-        end
-    end
 end
 
-Events.OnInitGlobalModData.Add(OnInitGlobalModData)
 Events.OnTick.Add(OnTick)
-Events.OnClientCommand.Add(OnClientCommand)
+Events.OnInitGlobalModData.Add(OnInitGlobalModData)
+Events.OnClientCommand.Add(function (module, command, player, args) OnCommand(module, command, player, args) end)

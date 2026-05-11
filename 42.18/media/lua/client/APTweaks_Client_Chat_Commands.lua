@@ -9,7 +9,6 @@ local aptweaks = require("APTweaks")
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
-local client_flags = aptweaks.client_flags
 local aptweaks_temp = aptweaks.aptweaks_temp
 
 local isAdmin = aptweaks.isAdmin
@@ -21,6 +20,7 @@ local extendStreamsList = aptweaks.extendStreamsList
 aptweaks_temp.safezone = aptweaks_temp.safezone or {}
 
 local aptweaks_streams = aptweaks_temp.aptweaks_streams
+local client_flags = aptweaks_temp.client_flags
 
 -- Solicita al servidor que elimine todos los datos del mod.
 local function APTweaksCleardataCommand()
@@ -34,7 +34,7 @@ end
 ---@return table|nil result Una tabla con la respuesta. Un texto, y un comando con sus argumentos según se requiera.
 local function APTweaksWarpCommand(player, action, warp)
 
-    if action ~= "add" and action ~= "remove" then return nil end
+    if not (action == "add" or action == "remove") then return end
 
     local data = {action = action, name = warp}
 
@@ -51,7 +51,7 @@ end
 ---@return table|nil result Una tabla con la respuesta. Un texto, y un comando con sus argumentos según se requiera.
 local function APTweaksSafezoneCommand(player, action)
 
-    if action ~= "pos1" and action ~= "pos2" and action ~= "add" and action ~= "remove" and action ~= "prune" then return nil end
+    if not (action == "pos1" or action == "pos2" or action == "add" or action == "remove" or action == "prune") then return end
 
     local data = {action = action}
 
@@ -99,7 +99,7 @@ local function WarpCommand(player, args)
         return {text = getText("IGUI_APTweaks_Chat_AlreadyExecuting")}
     end
 
-    return {command = "TeleportCommand", data = {status = "begins", name = warp}}
+    return {command = "TeleportCommand", data = {action = "request", name = warp}}
 end
 
 -- Solicita al servidr la lista de warps.

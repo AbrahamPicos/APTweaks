@@ -7,8 +7,8 @@
 local aptweaks = {
     -- La ID del mod.
     modID = "com.github.abrahampicos.aptweaks",
-    -- Banderas para el cliente controladas por el evento tick. Son útiles para el comando warp y el sistema AFK.
-    client_flags = {},
+    -- Los comandos de APTweaks. Tanto los del servidor como los del cliente.
+    commands = {},
     -- Datos varios que APTweaks necesita en tiempo de ejecución.
     aptweaks_temp = {},
     -- Respaldos de las funciones que fueron sobrescritas por APTweaks.
@@ -64,8 +64,10 @@ local sendServerCommand = aptweaks.sendServerCommand
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
-local client_flags = aptweaks.client_flags
 local aptweaks_temp = aptweaks.aptweaks_temp
+
+local commands = aptweaks.commands
+local client_flags = aptweaks_temp.client_flags
 
 -- Establece o respablece un timer.
 ---@param name string El nombre del timer.
@@ -128,19 +130,21 @@ end
 -- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
 ---@param reset boolean Si el mapa debe restablecerse, lo que borrará todos los datos.
 function aptweaks.SetupData(reset)
-    -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
-    aptweaks.aptweaks_data = ModData.getOrCreate("aptweaks")
+    local aptweaks_data = ModData.getOrCreate("aptweaks")
 
-    if aptweaks.isTableEmpty(aptweaks.aptweaks_data) or reset then
+    -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
+    aptweaks.aptweaks_data = aptweaks_data
+
+    if aptweaks.isTableEmpty(aptweaks_data) or reset then
         -- La versión de la estructura de datos. Se usará para saber si debe actualizarse cuando se actualiza el mod.
-        aptweaks.aptweaks_data.dataversion = 1
+        aptweaks_data.dataversion = 1
         -- El submapa de las áreas. Contiene toda la información de las áreas que pueden reclamarse como non-building safehouses.
-        aptweaks.aptweaks_data.areas = {}
+        aptweaks_data.areas = {}
         -- El submapa que indexa las áreas por celda.
         -- APTweaks usa una cuadricula espacial para indexar las áreas, lo que reduce las iteraciones al acceder al mapa de datos.
-        aptweaks.aptweaks_data.cells = {}
+        aptweaks_data.cells = {}
         -- El submapa que contiene los warps.
-        aptweaks.aptweaks_data.warps = {}
+        aptweaks_data.warps = {}
     end
 end
 
@@ -204,7 +208,7 @@ function aptweaks.isTableEmpty(t)
     return true
 end
 
--- Reinicia el estado AFK del cliente.
+-- Restablece el estado AFK del cliente.
 ---@param player table|nil El IsoPlayer asociado al cliente.
 function aptweaks.resetAfkStatus(player)
 
@@ -235,7 +239,7 @@ function aptweaks.resetTeleportStatus(player, teleporting)
     client_flags.teleporting = nil
 end
 
--- Devuélve si un rol es el rol por defecto para los nuevos usaurios.
+-- Devuélve si un rol es el rol por defecto para los nuevos usuarios.
 ---@param role table
 ---@return boolean|nil isDefault
 function aptweaks.isRoleUsersDefault(role)
@@ -253,7 +257,7 @@ function aptweaks.isRoleUsersDefault(role)
     end
 end
 
--- crea y devuélve un nuevo rol.
+-- Crea y devuélve un nuevo rol.
 ---@param name string
 ---@return table|nil role
 function aptweaks.getNewRole(name)
@@ -280,8 +284,9 @@ function aptweaks.extendStreamsList(destList, list, map)
         local exists = false
 
         for _, destValue in ipairs(destList) do
+            local shortCommand = value.shortCommand
 
-            if value.commmand == destValue.command or value.shortCommand == destValue.shortCommand then
+            if shortCommand and (shortCommand == destValue.shortCommand) or value.commmand == destValue.command  then
                 exists = true
                 break
             end
@@ -300,12 +305,54 @@ function aptweaks.extendStreamsList(destList, list, map)
     end
 end
 
--- Inicializar timers, streams, y devolver APTweaks.
-if not isServer() then
-    aptweaks_temp.aptweaks_streams = {}
-    aptweaks_temp.timers = {}
+-- Ejecuta acciones cuando el servidor o un cliente envió un comando relevante para APTweaks.
+---@param module string La ID del módulo que envió el comando.
+---@param command string El comando es sí.
+---@param player table|nil El IsoPlayer asociado al cliente que envió el comando.
+---@param args table Los argumentos del comando.
+function aptweaks.OnCommand(module, command, player, args)
 
+    -- Si el módulo no coincide con APTweaks, no hay nada que hacer.
+    if module ~= modID then return end
+
+    player = player or client_flags.player
+
+    -- Manejar comando.
+    local result = commands[command].handler(player, args)
+
+    -- Procesar el resultado.
+    if result then
+        aptweaks.processCommandResult(player, result, modID)
+    end
+end
+
+-- Inicializar variables de datos temporales.
+if not isServer() then
+    -- La tabla de timers.
+    aptweaks_temp.timers = {}
+    -- El mapa de banderas del cliente. Controla los estados del cliente para los sistemas que el mod añade. 
+    aptweaks_temp.client_flags = {}
+    -- La tabla de los de los comandos de chat. Debe añadir aquí sus comandos para que este mod los maneje. 
+    aptweaks_temp.aptweaks_streams = {}
+
+    -- Inicializar timers.
     setTimer("afk"); setTimer("teleport")
+
+else
+    -- El submapa de los jugadores que están en la pantalla de carga.
+    aptweaks_temp.afk = {}
+    -- El submapa de los jugadres pateados.
+    aptweaks_temp.kicked = {}
+    -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
+    aptweaks_temp.blocked = {}
+    -- El submapa de los clientes que se están teletransportando en este momento.
+    aptweaks_temp.teleport = {}
+    -- La tabla de jugadores conectados. Ya que el juego no tiene nada para eso, este mod rastrea conexiones y desconexiones.
+    aptweaks_temp.onlinePlayers = {}
+    -- La tabla con las funciones que se ejecutarán cada vez que un jugador se conecta.
+    aptweaks_temp.onPlayerConnected = {}
+    -- La tabla con las funciones que se ejecutarán cada vez que un jugador se desconecta.
+    aptweaks_temp.onPlayerDisconnected = {}
 end
 
 return aptweaks

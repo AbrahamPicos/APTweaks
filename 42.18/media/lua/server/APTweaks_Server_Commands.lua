@@ -12,9 +12,10 @@ local addSafezoneCommand = aptweaks_safezones.addSafezoneCommand
 local claimSafezoneCommand = aptweaks_safezones.claimSafezoneCommand
 local removeSafezoneCommand = aptweaks_safezones.removeSafezoneCommand
 local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
-local teleportBeginsCommand = aptweaks_teleport.teleportBeginsCommand
-local teleportRequestedCommand = aptweaks_teleport.teleportRequestedCommand
+local teleportStartCommand = aptweaks_teleport.teleportStartCommand
+local teleportRequestCommand = aptweaks_teleport.teleportRequestCommand
 
+local commands = aptweaks.commands
 local aptweaks_temp = aptweaks.aptweaks_temp
 local APTweaksVars = aptweaks.APTweaksVars
 
@@ -22,28 +23,39 @@ local APTweaksVars = aptweaks.APTweaksVars
 ---@param player table El jugador asociado al cliente.
 ---@param args table los argumentos del comando.
 ---@return table|nil result
-local function TeleportCommand(player, args) -- args = {name = name, status = status}
+local function TeleportCommand(player, args) -- args = {name = name, action = action}
+
+    -- Si el sistema está deshabilitado, no hay nada qué hacer.
+    if not APTweaksVars.TeleportSystemEnabled then return end
+
+    local action = args.action
+
+    -- validar acciones.
+    if not (action == "request" or action == "start" or action == "sucess" or action == "fail") then return end
+
     local teleport = aptweaks_temp.teleport[player:getUsername()]
-    local aptweaks_data = aptweaks.aptweaks_data
-    local status = args.status
     local data
 
-    -- Si es un paquete begins.
-    if status == "begins" then
-        data = teleportBeginsCommand(player, teleport, aptweaks_data, args)
+    -- Si el cliente tiene un teletransporte en curso.
+    if teleport then
 
-    -- Si el cliente envió antes un paquete begins.
-    elseif not teleport then
+        -- Si está el cooldown, notificar tiempo restante.
+        if teleport.cooldown then
+            return {status = "cooldown", time = math.abs(((getTimestampMs() - teleport.cooldown) / 1000) - APTweaksVars.TeleportCooldown)}
 
-        -- si el paquete es requested.
-        if status == "requested" then
-            data = teleportRequestedCommand(player, teleport)
+        -- Si solicitó que el teletransporte ocura.
+        elseif action == "start" then
+            data = teleportStartCommand(player, teleport)
 
-        -- Si el paquete es succeded o failed.
-        elseif status == "succeded" or status == "failed" then
-            teleportEndsCommand(player, teleport, args)
+        -- Si notificó que terminó.
+        elseif action == "succes" or action == "fail" then
+            teleportEndsCommand(player, teleport, action)
             return -- El cliente no espera respuesta en este caso.
         end
+
+    -- Si el cliente envió una nueva solicitud.
+    elseif action == "request" then
+        data = teleportRequestCommand(player, args)
     end
 
     -- Si hubo una inconsistencia grave, responder con un paquete denied vacío.
@@ -51,7 +63,6 @@ local function TeleportCommand(player, args) -- args = {name = name, status = st
         data = {status = "denied"}
     end
 
-    -- Terminar.
     return {command = "TeleportCommand", data = data}
 end
 
@@ -132,7 +143,7 @@ local function WarpCommand(player, args)
         if not aptweaks_data.warps[warp] then
             aptweaks_data.warps[warp] = location
 
-            return {text = string.format("warp %s añadido.", warp)}
+            return {text = string.format("Warp %s añadido.", warp)}
 
         else
             return {text = "Ese warp ya existe."}
@@ -180,28 +191,25 @@ local function AfkAsistCommand(player, args)
     end
 end
 
-local client_commands = {
-    AfkAsistCommand = {
-        handler = function (player, args) return AfkAsistCommand(player, args) end
-    },
-    ClearDataCommand = {
-        handler = function (player, _) return ClearDataCommand(player) end
-    },
-    WarpCommand = {
-        handler = function(player, args) return WarpCommand(player, args) end
-    },
-    WarpsCommand = {
-        handler = function (_, _) return WarpsCommand() end
-    },
-    SafezoneCommand = {
-        handler = function (player, args) return SafezoneCommand(player, args) end
-    },
-    TeleportCommand = {
-        handler = function (player, args) return TeleportCommand(player, args) end
-    },
-    Something = {
-        handler = function (_, _) return nil end
-    }
+-- Regitrar los comandos de cliente de APTweaks.
+commands.AfkAsistCommand = {
+    handler = function (player, args) return AfkAsistCommand(player, args) end
 }
-
-return client_commands
+commands.ClearDataCommand = {
+    handler = function (player, _) return ClearDataCommand(player) end
+}
+commands.WarpCommand = {
+    handler = function(player, args) return WarpCommand(player, args) end
+}
+commands.WarpsCommand = {
+    handler = function (_, _) return WarpsCommand() end
+}
+commands.SafezoneCommand = {
+    handler = function (player, args) return SafezoneCommand(player, args) end
+}
+commands.TeleportCommand = {
+    handler = function (player, args) return TeleportCommand(player, args) end
+}
+commands.Something = {
+    handler = function (_, _) return nil end
+}

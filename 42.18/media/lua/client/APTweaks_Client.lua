@@ -7,16 +7,16 @@
 ---  en la pantalla de creación de personaje para siempre al no tener un IsoPlayer asociado con el cual rastrearlo.
 --- Esto será imposible hasta que IndieStone decida permitir manipular conexiones del lado del servidor desde lua.
 
-local aptweaks, server_commands = require("APTweaks"), require("APTweaks_Client_Commands")
+local aptweaks = require("APTweaks")
 
 local modID = aptweaks.modID
 local APTweaksVars = aptweaks.APTweaksVars
-local client_flags = aptweaks.client_flags
+local aptweaks_temp = aptweaks.aptweaks_temp
 
+local OnCommand = aptweaks.OnCommand
 local getTimerUpdate = aptweaks.getTimerUpdate
 local resetAfkStatus = aptweaks.resetAfkStatus
 local resetTeleportStatus = aptweaks.resetTeleportStatus
-local processCommandResult = aptweaks.processCommandResult
 
 local Events = aptweaks.Events
 local getText = aptweaks.getText
@@ -26,25 +26,7 @@ local GameTime = aptweaks.GameTime
 local getPlayer = aptweaks.getPlayer
 local sendClientCommand = aptweaks.sendClientCommand
 
--- En el evento OnServerCommand.
--- Procesa los comandos enviados por APTweaks desde el servidor al cliente.
----@param module string La ID del módulo que envió el comando. En este caso este mod.
----@param command string El comando.
----@param args table Los argumentos del comando.
-local function OnServerCommand(module, command, args)
-    local player = client_flags.player
-
-    -- Si el módulo no coincide con APTweaks, no hay nada que hacer.
-    if module ~= modID then return end
-
-    -- Manejar comando.
-    local result = server_commands[command].handler(player, args)
-
-    -- Procesar el resultado.
-    if result then
-        processCommandResult(player, result, modID)
-    end
-end
+local client_flags = aptweaks_temp.client_flags
 
 -- Actualiza el estado AFK del cliente.
 -- Esto sóĺo funciona antes y después de la pantalla de carga. Aún no encuentro una forma de que funcione durante.
@@ -106,7 +88,7 @@ local function updateTeleportStatus(player, deltaTime)
 
     -- si ya terminó el tiempo, notificar al usuario, y enviar solicitud de teletransporte al servidor.
     if seconds == APTweaksVars.TeleportDelay then
-        sendClientCommand(player, modID, "TeleportCommand", {status = "requested"})
+        sendClientCommand(player, modID, "TeleportCommand", {action = "start"})
         teleporting.status = "requested"
     end
 end
@@ -186,12 +168,12 @@ local function OnAddMessage(message, tabId)
     end
 end
 
-Events.OnTickEvenPaused.Add(OnTickEvenPaused)
-Events.OnFETick.Add(OnTickEvenPaused)
-Events.OnCreatePlayer.Add(OnCreatePlayer)
 Events.OnGameStart.Add(OnGameStart)
-Events.OnServerCommand.Add(OnServerCommand)
+Events.OnFETick.Add(OnTickEvenPaused)
 Events.OnAddMessage.Add(OnAddMessage)
+Events.OnCreatePlayer.Add(OnCreatePlayer)
+Events.OnTickEvenPaused.Add(OnTickEvenPaused)
+Events.OnServerCommand.Add(function (module, command, args) OnCommand(module, command, nil, args) end)
 
 -- Añadir la lógica necesaria del lado del servidor para manejar el teleportCooldown. *EN TRABAJO -AbrahamPicos*
 -- Tal vez sea mejor usar timers con callbacks para la función OnTick.
