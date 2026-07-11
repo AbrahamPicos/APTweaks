@@ -1,36 +1,18 @@
 {
-    "Lua.diagnostics.globals": [
-        "Color",
-        "ISChat",
-        "Events", 
-        "ModData", 
-        "getCore",
-        "getText",
-        "isAdmin",
-        "addRole",
-        "getRoles",
-        "writeLog",
-        "isClient",
-        "isServer", 
-        "GameTime",
-        "getPlayer",
-        "setupRole", 
-        "SafeHouse",
-        "deleteRole",
-        "Capability",
-        "isCoopHost",
-        "doKeyPress",
-        "triggerEvent",
-        "getTimestampMs",
-        "getServerOptions",
-        "sendClientCommand",
-        "sendServerCommand",
-        "getConnectedPlayers",
-        "alreadyHaveSafehouse",
-        "getPlayerFromUsername",
-        "getSteamIDFromUsername",
-
-        "luautils",
-        "SandboxVars"
-    ]
+    "Lua.workspace.library": [
+        "${addons}/umbrella-unstable/module/library"
+    ],
+    "Lua.runtime.version": "Lua 5.1",
+    "Lua.runtime.path": [
+        "?.lua",
+        "?/init.lua",
+        "server/?.lua"
+    ],
+    "Lua.completion.requireSeparator": "/",
+    "Lua.runtime.builtin": {
+        "debug": "disable",
+        "io": "disable",
+        "package": "disable"
+    },
+    "Lua.workspace.checkThirdParty": false
 }

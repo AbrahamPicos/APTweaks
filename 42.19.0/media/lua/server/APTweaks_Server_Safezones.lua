@@ -4,8 +4,36 @@ local aptweaks, aptweaks_safezones = require("APTweaks"), {}
 local APTweaksVars = aptweaks.APTweaksVars
 local aptweaks_temp = aptweaks.aptweaks_temp
 
-local ModData = aptweaks.ModData
-local SafeHouse = aptweaks.SafeHouse
+local ModData = ModData
+local SafeHouse = SafeHouse
+
+-- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
+aptweaks_temp.blocked = aptweaks_temp.blocked or {} ---@type table<string,string?>
+
+-- USAR ESTO COMO BASE PARA REFACTORIZAR.
+--------------------------------------------
+local function almacenarAreaGrande(id, x, y, ancho, alto)
+    -- Calcular celdas de inicio y fin (Rango espacial)
+    local celdaX_inicio = math.floor(x / tamanoCelda)
+    local celdaX_fin    = math.floor((x + ancho) / tamanoCelda)
+    
+    local celdaY_inicio = math.floor(y / tamanoCelda)
+    local celdaY_fin    = math.floor((y + alto) / tamanoCelda)
+    
+    -- Guardar el objeto en cada celda que abarca
+    for cx = celdaX_inicio, celdaX_fin do
+        for cy = celdaY_inicio, celdaY_fin do
+            local celdaID = obtenerClaveCelda(cx, cy)
+            
+            -- Crear la celda si no existe
+            grilla[celdaID] = grilla[celdaID] or {}
+            
+            -- Insertar el ID del área en esta celda
+            table.insert(grilla[celdaID], id)
+        end
+    end
+end
+----------------------------------------------------------------
 
 -- Obtiene las celdas que comprenden un area.
 -- Basándose en las mediadas de la cuadrícula espacial de Project Zomboid.
@@ -15,8 +43,8 @@ local SafeHouse = aptweaks.SafeHouse
 ---@param y2 number
 ---@return table areaCells
 local function getAreaCells(x1, x2, y1, y2)
-    local cx1, cy1 = math.floor(x1 / 300), math.floor(y1 / 300)
-    local cx2, cy2 = math.floor(x2 / 300), math.floor(y2 / 300)
+    local cx1, cy1 = math.floor(x1 / 256), math.floor(y1 / 256)
+    local cx2, cy2 = math.floor(x2 / 256), math.floor(y2 / 256)
     local areaCells = {}
 
     for cx = cx1, cx2 do
@@ -45,8 +73,8 @@ function aptweaks_safezones.addSafezoneCommand(args, data) -- args = {x1 = pos1.
     elseif x2 <= x1 or y2 <= y1 then
         return {text = "Es necesario que pos1 este en la esquina superior izquierda del area."}
 
-    elseif (x2 - x1) >= 300 or (y2 - y1) >= 300 then
-        return {text = "El area no puede ser mayor o igual a 300 tiles."}
+    elseif (x2 - x1) >= 256 or (y2 - y1) >= 256 then
+        return {text = "El area no puede ser mayor o igual a 256 tiles."}
     end
 
     -- Verificar si ya existe el área
@@ -93,7 +121,7 @@ function aptweaks_safezones.addSafezoneCommand(args, data) -- args = {x1 = pos1.
 end
 
 -- Reclama un área como una safehouse para un cliente.
----@param player table El IsoPlayer asociado al cliente que hizó la solicitud. 
+---@param player IsoPlayer El IsoPlayer asociado al cliente que hizó la solicitud. 
 ---@param targetArea table El área que está intentando reclamar.
 ---@return table result
 function aptweaks_safezones.claimSafezoneCommand(player, targetArea)

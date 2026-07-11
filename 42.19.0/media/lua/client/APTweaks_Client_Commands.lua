@@ -4,12 +4,13 @@
 
 local aptweaks = require("APTweaks")
 
-local getText = aptweaks.getText
+local getText = getText
 
-local showWarps = aptweaks.showWarps
-
+local utils = aptweaks.utils
 local commands = aptweaks.commands
 local aptweaks_temp = aptweaks.aptweaks_temp
+
+local showWarps = utils.showWarps
 
 local text_handlers = {
     [0] = function (s, _, _, _, _) return getText(s) end,
@@ -21,16 +22,16 @@ local text_handlers = {
 local client_flags = aptweaks_temp.client_flags
 
 -- Muestra un mensaje cuando un jugador se conectó al servidor.
----@param args table
----@return table result
+---@param args {username:string}
+---@return APTResult? result
 local function PlayerConnectedCommand(args)
     return {text = getText("IGUI_APTweaks_Chat_WellcomeMessage", args.username)}
 end
 
 -- Muestra un mensaje cuando un jugador se desconectó del servidor.
 ---comment
----@param args table
----@return table result
+---@param args {username:string}
+---@return APTResult? result
 local function PlayerDisconnectedCommand(args)
     return {text = getText("IGUI_APTweaks_Chat_FarewellMessage", args.username)}
 end
@@ -40,23 +41,23 @@ end
 -- de crear safehouses. Podría ser prosible añadir safehoses del lado del servidor, pero no
 -- se sincronizarían al momento con los cliente.
 -- Quizá haya un truco. Como crearla y ajustar algo más aquí.
----@param player table
+---@param player IsoPlayer
 ---@param args table
----@return table result
+---@return APTResult? result
 local function SafezoneCommand(player, args) --ESTO ESTA ROTO: Cambió en la B42.
     return {text = "Safehouse creada exitosamente."}
 end
 
 -- Teletransporta al jugador asociado al cliente.
----@param player table El jugador asociado al cliente.
+---@param player IsoPlayer El jugador asociado al cliente.
 ---@param args table Los argumentos del comando.
----@return table|nil result El resultado del comando. Un mensaje, y un comando con sus argumentos según se requiera.
+---@return APTResult? result El resultado del comando. Un mensaje, y un comando con sus argumentos según se requiera.
 local function TeleportCommand(player, args)
     local status = args.status
 
     -- Si el servidor indicó que debe continuar con el delay, no hay nada qué hacer.
     if status == "proceed" then
-        client_flags.teleporting = {status = "begins"}
+        client_flags.teleport = {status = "begins"}
         return
     end
 
@@ -83,7 +84,7 @@ local function TeleportCommand(player, args)
         result.data = {status = "succeded"}
 
         -- Validar si el trletransporte aún debe ocurrir.
-        if client_flags.teleporting.status == "cancelled" then
+        if client_flags.teleport.status == "cancelled" then
             result.data.stauts = "failed"
         end
 
@@ -95,26 +96,30 @@ local function TeleportCommand(player, args)
     end
 
     -- Limpiar teletransporte
-    client_flags.teleporting = nil
+    client_flags.teleport = nil
 
     -- Notificar al servidor.
     return result
 end
 
 -- Muestra los warps disponibles.
----@param args table
----@return table result
+---@param args {names:table<string,string>}
+---@return APTResult result
 local function WarpsCommand(args)
     return {text = getText("IGUI_APTweaks_AviableWarps", showWarps(args.names))}
 end
 
 -- Devuélve un mensaje Internacionalizado.
----@param args table
----@return table result
+---@param args table<string, any>
+---@return APTResult? result
 local function MessageCommand(args)
+    local subs = args.subs or {} -- Elementos que sustituirán a los placeholders en el texto.
+    local handler = text_handlers[#subs]
+
+    if not handler then return end
+
     local s = args.text
-    local subs = args.subs or {}
-    local text = text_handlers[#subs](s, subs[1], subs[2], subs[3], subs[4])
+    local text = handler(s, subs[1], subs[2], subs[3], subs[4])
 
     return {text = text}
 end

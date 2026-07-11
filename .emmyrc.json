@@ -1,0 +1,11 @@
+{
+    "workspace": {
+        "library": [
+        "../.PZ_SourceCode/Umbrella-42.18.0/library"
+        ]
+    },
+    "runtime": {
+        "version": "Lua5.1",
+        "requirePattern": ["?.lua", "?/init.lua", "server/?.lua"]
+    }
+}

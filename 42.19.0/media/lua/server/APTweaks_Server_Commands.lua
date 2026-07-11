@@ -5,24 +5,23 @@
 local aptweaks = require("APTweaks")
 local aptweaks_safezones, aptweaks_teleport = require("APTweaks_Server_Safezones"), require("APTweaks_Server_Teleport")
 
-local getTimestampMs = aptweaks.getTimestampMs
+local getTimestampMs = getTimestampMs
 
-local SetupData = aptweaks.SetupData
-local addSafezoneCommand = aptweaks_safezones.addSafezoneCommand
-local claimSafezoneCommand = aptweaks_safezones.claimSafezoneCommand
-local removeSafezoneCommand = aptweaks_safezones.removeSafezoneCommand
-local teleportEndsCommand = aptweaks_teleport.teleportEndsCommand
-local teleportStartCommand = aptweaks_teleport.teleportStartCommand
-local teleportRequestCommand = aptweaks_teleport.teleportRequestCommand
-
+local utils = aptweaks.utils
 local commands = aptweaks.commands
 local aptweaks_temp = aptweaks.aptweaks_temp
 local APTweaksVars = aptweaks.APTweaksVars
 
+local SetupData = utils.SetupData
+local addSafezoneCommand = aptweaks_safezones.addSafezoneCommand
+local claimSafezoneCommand = aptweaks_safezones.claimSafezoneCommand
+local removeSafezoneCommand = aptweaks_safezones.removeSafezoneCommand
+local teleportRequestCommand = aptweaks_teleport.teleportRequestCommand
+
 -- La parte de la lógica del sistema de teletransporte procesada del lado del servidor.
----@param player table El jugador asociado al cliente.
----@param args table los argumentos del comando.
----@return table|nil result
+---@param player IsoPlayer El jugador asociado al cliente.
+---@param args table<string, string?> los argumentos del comando.
+---@return APTResult? result
 local function TeleportCommand(player, args) -- args = {name = name, action = action}
 
     -- Si el sistema está deshabilitado, no hay nada qué hacer.
@@ -31,7 +30,7 @@ local function TeleportCommand(player, args) -- args = {name = name, action = ac
     local action = args.action
 
     -- validar acciones.
-    if not (action == "request" or action == "start" or action == "sucess" or action == "fail") then return end
+    if not (action == "request") then return end
 
     local teleport = aptweaks_temp.teleport[player:getUsername()]
     local data
@@ -41,16 +40,10 @@ local function TeleportCommand(player, args) -- args = {name = name, action = ac
 
         -- Si está el cooldown, notificar tiempo restante.
         if teleport.cooldown then
-            return {status = "cooldown", time = math.abs(((getTimestampMs() - teleport.cooldown) / 1000) - APTweaksVars.TeleportCooldown)}
+            data = {status = "cooldown", time = math.abs(((getTimestampMs() - teleport.cooldown) / 1000) - APTweaksVars.TeleportCooldown)}
 
-        -- Si solicitó que el teletransporte ocura.
-        elseif action == "start" then
-            data = teleportStartCommand(player, teleport)
-
-        -- Si notificó que terminó.
-        elseif action == "succes" or action == "fail" then
-            teleportEndsCommand(player, teleport, action)
-            return -- El cliente no espera respuesta en este caso.
+        else
+            data = {status = "throttled"}
         end
 
     -- Si el cliente envió una nueva solicitud.
@@ -67,31 +60,31 @@ local function TeleportCommand(player, args) -- args = {name = name, action = ac
 end
 
 -- La parte de la lógica del sistema de safehouses sin edificios procesada del lado del servidor.
----@param player table Un IsoPlayer.
+---@param player IsoPlayer Un IsoPlayer.
 ---@param args table 
----@return table|nil result
+---@return APTResult? result
 local function SafezoneCommand(player, args)
 
-    -- Si el sistema de safehuses sin edificios no está habilitado no hay nada qué hacer. 
+    -- Si el sistema de safehuses sin edificios no está habilitado, no hay nada qué hacer. 
     if not APTweaksVars.SafehouseSystemEnabled then return end
 
-    local requireAdmin = {add = true, remove = true, claim = false}
     local action = args.action
+    local requireAdmin = {add = true, remove = true, claim = false}
 
     -- Validar permisos.
-    if not APTweaksVars.CoopServerMode and (requireAdmin[action] and player:getAccessLevel() ~= "admin") then
+    if not APTweaksVars.CoopServerMode and (requireAdmin[action] and player:getRole():getName() ~= "admin") then
         return {text = "No tienes permitido realizar esa acción."}
     end
 
-    local data = aptweaks.aptweaks_data
+    local data = aptweaks_temp.aptweaks_data
 
-    -- Si va a añadirse un área, añadirla.
+    -- Si va a añadirse un área, añadirla y salir.
     if action == "add" then
         return addSafezoneCommand(args, data)
     end
 
     local x, y = args.x, args.y
-    local cellID = math.floor(x / 300) .. math.floor(y / 300)
+    local cellID = math.floor(x / 256) .. "," .. math.floor(y / 256)
     local cellAreas = data.cells[cellID]
     local targetArea
 
@@ -122,11 +115,11 @@ end
 
 -- Añade o remueve un warp del mapa de datos del mod.
 -- args = {action = action, name = warp, location = {x = x, y = y, z = z}}
----@param player table El IsoPlayer asociado al cliente.
+---@param player IsoPlayer El IsoPlayer asociado al cliente.
 ---@param args table
----@return table|nil result
+---@return APTResult? result
 local function WarpCommand(player, args)
-    local aptweaks_data = aptweaks.aptweaks_data
+    local aptweaks_data = aptweaks_temp.aptweaks_data
     local warp = args.name
 
     if player:getRole():getName() ~= "admin" and not APTweaksVars.CoopServerMode then return end
@@ -164,28 +157,38 @@ end
 
 -- Notifica al cliente la tabla de warps disponibles.
 local function WarpsCommand()
-    return {command = "WarpsCommand", data = {names = aptweaks.aptweaks_data.warps}}
+    local warps = {}
+
+    for warp, _ in pairs(aptweaks_temp.aptweaks_data.warps) do
+        table.insert(warps, warp)
+    end
+
+    return {command = "WarpsCommand", data = {names = warps}}
 end
 
 -- Reinicia el mapa de datos de APTweaks a sus valores predeterminados.
----@return table|nil result
+---@param player IsoPlayer El jugador asociado al cliente.
+---@return APTResult? result
 local function ClearDataCommand(player) -- args = {}
 
-    if player:getAccessLevel() ~= "admin" and not APTweaksVars.CoopServerMode then return end
+    if player:getRole():getName() ~= "admin" and not APTweaksVars.CoopServerMode then return end
 
     SetupData(true) -- Esto realmente lo elimina todo.
 
     return {text = "Todos los datos de APTweaks han sido eliminados."}
 end
 
--- Controla si el jugador debe expulsarse por pasar demasiado tiempo existiendo sin notificar que salió de la pantalla de carga.
----@param player table
----@param args table
+-- Alterna si el servidor debe manejar el sistema anti-AFK para un cliente.
+-- Esto permite expulsar jugadores durante la pantalla de carga, pero el cliente debe notificar cuando entra y sale.
+---@param player IsoPlayer El jugador asociado al cliente.
+---@param args {start:boolean} Los argumentos del comando.
 local function AfkAsistCommand(player, args)
 
+    -- Si el jugador entró en la pantalla de carga, comenzar manejo.
     if args.start then
         aptweaks_temp.afk[player:getUsername()] = getTimestampMs()
 
+    -- De lo contrario, dejar de manejar.
     else
         aptweaks_temp.afk[player:getUsername()] = nil
     end

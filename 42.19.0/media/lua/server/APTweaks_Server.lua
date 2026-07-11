@@ -4,33 +4,32 @@
 
 local aptweaks = require("APTweaks")
 
+require "APTweaks_Server_Utils"
+
 local modID = aptweaks.modID
+local utils = aptweaks.utils
 local aptweaks_temp = aptweaks.aptweaks_temp
 local APTweaksVars = aptweaks.APTweaksVars
 
-local SetupData = aptweaks.SetupData
-local OnCommand = aptweaks.OnCommand
+local Events = Events
 
-local Color = aptweaks.Color
-local Events = aptweaks.Events
-local getRoles = aptweaks.getRoles
-local luautils = aptweaks.luautils
-local deleteRole = aptweaks.deleteRole
-local getTimestampMs = aptweaks.getTimestampMs
-local sendServerCommand = aptweaks.sendServerCommand
-local getConnectedPlayers = aptweaks.getConnectedPlayers
+local pairs = pairs
+
+local getRoles = getRoles
+local deleteRole = deleteRole
+local getTimestampMs = getTimestampMs
+local sendServerCommand = sendServerCommand
+local getConnectedPlayers = getConnectedPlayers
 
 local onlinePlayers = aptweaks_temp.onlinePlayers
 
--- Devuelve un rol de kick para un jugador.
----@param player table
----@return table|nil role
-local function getPlayerKickRole(player)
-    local name = "APTweaks_Kick_" .. player:getUsername()
-    local newRole = aptweaks.getNewRole(name)
+local luautils = luautils
 
-    setupRole(newRole, "A temporary APTweaks Kick role", Color.red, {}) -- ?
-    return newRole
+-- Devuelve un rol de kick para un jugador.
+---@param player IsoPlayer
+---@return Role role
+local function getPlayerKickRole(player)
+    return utils.getNewRole("APTweaks_Kick_" .. player:getUsername(), {})
 end
 
 -- En el evento OnInitGlobalModData. Crea el mapa de Datos de APTweaks.
@@ -39,14 +38,15 @@ end
 local function OnInitGlobalModData(isNewGame)
     local roles = getRoles()
 
-    SetupData(false)
+    utils.SetupData(false)
 
     -- Eliminar los roles de APTweaks rezagados. Esto puede pasar si el servidor se apaga incorrectamente.
     for i = 0, roles:size() - 1 do
         local role = roles:get(i)
+        local roleName = role:getName()
 
-        if luautils.stringStarts(role:getName(), "APTweaks_") then
-            deleteRole(role) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
+        if luautils.stringStarts(roleName, "APTweaks_") then
+            deleteRole(roleName) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
         end
     end
 end
@@ -56,7 +56,7 @@ end
 ---@param tick integer El tick actual.
 local function OnTick(tick)
     local players = getConnectedPlayers()
-    local currentPlayers = {}
+    local currentPlayers = {} ---@type table<string,boolean?>
 
     -- Por cada jugador conectado.
     for i = 0, players:size() - 1 do
@@ -81,7 +81,7 @@ local function OnTick(tick)
         if not currentPlayers[username] then
             onlinePlayers[username] = nil
 
-            for _, task in ipairs(aptweaks.onPlayerConnected) do
+            for _, task in pairs(aptweaks_temp.onPlayerDisconnected) do
                 task(username)
             end
 
@@ -90,7 +90,7 @@ local function OnTick(tick)
                 aptweaks_temp.afk[username] = nil
             end
 
-            -- Si el jugador fue expulsado, eiminar rol de kick.
+            -- Si el jugador fue expulsado, eliminar rol de kick.
             if aptweaks_temp.kicked[username] then
                 deleteRole(aptweaks_temp.kicked[username])
 
@@ -102,21 +102,22 @@ local function OnTick(tick)
         end
     end
 
+    -- Lanzar tareas de los módulos,
+    for _, task in pairs(aptweaks_temp.onTick) do
+        task(tick)
+    end
+
     -- Por cada jugador en la pantalla de carga.
     for username, time in pairs(aptweaks_temp.afk) do
 
-        -- Si exedió el tiempo límite, expulsar.
+        -- Si excedió el tiempo límite, expulsar.
         if (getTimestampMs() - time) >= ((APTweaksVars.AfkStart + APTweaksVars.AfkKick) * 1000) then
             local player = onlinePlayers[username]
 
-            if onlinePlayers[username] then
+            if player then
                 local kickRole = getPlayerKickRole(player)
 
-                if kickRole then
-                    player:setRole(kickRole)
-
-                    aptweaks_temp.kicked[username] = kickRole
-                end
+                player:setRole(kickRole); aptweaks_temp.kicked[username] = kickRole:getName()
             end
 
             aptweaks_temp.afk[username] = nil
@@ -126,4 +127,6 @@ end
 
 Events.OnTick.Add(OnTick)
 Events.OnInitGlobalModData.Add(OnInitGlobalModData)
-Events.OnClientCommand.Add(function (module, command, player, args) OnCommand(module, command, player, args) end)
+Events.OnClientCommand.Add(function (module, command, player, args)
+    utils.OnCommand(module, command, player, args)
+end)
