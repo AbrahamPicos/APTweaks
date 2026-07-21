@@ -32,22 +32,29 @@ local function getPlayerKickRole(player)
     return utils.getNewRole("APTweaks_Kick_" .. player:getUsername(), {})
 end
 
--- En el evento OnInitGlobalModData. Crea el mapa de Datos de APTweaks.
+-- En el evento OnInitGlobalModData. Carga el mapa de datos persistentes de APTweaks.
 -- Este también es un buen punto para purgar datos.
 ---@param isNewGame boolean Si GlobalModData se inicializa en un nuevo guardado.
 local function OnInitGlobalModData(isNewGame)
     local roles = getRoles()
+    local delete = {} ---@type string[]
 
+    -- Cargar el mapa de datos persistentes.
     utils.SetupData(false)
 
-    -- Eliminar los roles de APTweaks rezagados. Esto puede pasar si el servidor se apaga incorrectamente.
-    for i = 0, roles:size() - 1 do
+    -- Buscar roles de APTweaks rezagados.
+    for i = 0, roles:size() - 1 do -- Desplazando uno a la izquierda debido a una peculiaridad de Kahlua.
         local role = roles:get(i)
         local roleName = role:getName()
 
         if luautils.stringStarts(roleName, "APTweaks_") then
-            deleteRole(roleName) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
+            table.insert(delete, roleName) -- No estoy seguro de si pueda eliminarlo aquí, incluso con un bucle inverso.
         end
+    end
+
+    -- Elimina los roles rezagados. Esto puede pasar si el servidor se apaga incorrectamente.
+    for _, v in ipairs(delete) do
+        deleteRole(v) -- Esto también quita el rol a cualquier jugador desconectado que lo tenga.
     end
 end
 
@@ -125,7 +132,7 @@ local function OnTick(tick)
     end
 end
 
-Events.OnTick.Add(OnTick)
+Events.OnTick.Add(OnTick--[[@cast (fun(tick:number)) Anotado para Lua 5.1]])
 Events.OnInitGlobalModData.Add(OnInitGlobalModData)
 Events.OnClientCommand.Add(function (module, command, player, args)
     utils.OnCommand(module, command, player, args)

@@ -60,10 +60,10 @@ function utils.isTableEmpty(t)
     return true
 end
 
--- Procesa la respuesta de todos los comandos de APTweaks cuando son usados a travez de APTweaks.
+-- Procesa la respuesta de todos los comandos de APTweaks, cuando son usados a travez de APTweaks.
 -- Envia un comando, y/o añade un mensaje al chat, según sean necesarios.
----@param player IsoPlayer Un IsoPlayer.
----@param result APTResult La tabla con el resultado del comando.
+---@param player IsoPlayer El jugador asociado al comando.
+---@param result APTResult El resultado del comando.
 ---@param provider string El proovedor de comando. Se usa para enviar comandos.
 function utils.processCommandResult(player, result, provider)
     local text = result.text
@@ -79,17 +79,17 @@ function utils.processCommandResult(player, result, provider)
         sendServerCommand(player, provider, commandName, data)
         return
     end
-    
+
     if not isClient() then return end
 
     if commandName ~= "MessageCommand" and text then
         utils.addMessage(text, provider, false, 1)
     end
-    
+
     sendClientCommand(player, provider, commandName, data)
 end
 
--- Ejecuta acciones cuando el servidor o un cliente envió un comando relevante para APTweaks.
+-- Ejecuta acciones cuando el servidor o un cliente envia un comando relevante para APTweaks.
 -- Se usa como callback en OnClientCommand y OnServerCommand.
 ---@param module string La ID del módulo que envió el comando.
 ---@param command string El comando es sí.
@@ -100,7 +100,7 @@ function utils.OnCommand(module, command, player, args)
     -- Si el módulo no coincide con APTweaks, o el comando no existe, no hay nada que hacer.
     if module ~= modID or not commands[command] then return end
 
-    player = player or client_flags.player -- En onClientCommand el argumento player siempre contendrá un IsoPlayer.
+    player = player or client_flags.player -- En OnClientCommand, el argumento player siempre contendrá un IsoPlayer.
 
     -- Manejar comando.
     local result = commands[command].handler(player, args or {})

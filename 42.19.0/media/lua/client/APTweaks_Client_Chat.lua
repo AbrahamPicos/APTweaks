@@ -23,18 +23,18 @@ require "APTweaks_Client_Chat_Utils"
 ---@field command string
 ---@field shortCommand string?
 ---@field argc {min:integer,max:integer}?
----@field tabID integer
 ---@field usage string
----@field requires table<string,any>?
+---@field requires {tabID:integer?,admin:boolean?,playerAlive:boolean?}?
+---@field customRequires table<string,boolean?>?
 
 ---@class APTSubcommand
 ---@field argc {max:integer}
 ---@field usage string
 ---@field actions string[]?
----@field handler fun(player:IsoPlayer,args:string[]):table
+---@field handler fun(player:IsoPlayer,args:string[]):APTResult
 
 ---@class APTCommand: APTProtoCommand
----@field handler fun(player:IsoPlayer,args:string[]):table
+---@field handler fun(player:IsoPlayer,args:string[]):APTResult
 
 ---@class APTAdvancedCommand: APTProtoCommand
 ---@field subcommands table<string,APTSubcommand?>?
@@ -76,6 +76,8 @@ local Events = Events
 
 local getText = getText
 local doKeyPress = doKeyPress
+local isCoopHost = isCoopHost
+local getTimestampMs = getTimestampMs
 
 legacy_functions.addLineInChat = legacy_functions.addLineInChat or ISChat.addLineInChat
 legacy_functions.onSwitchStream = legacy_functions.onSwitchStream or ISChat.onSwitchStream
@@ -90,6 +92,42 @@ local aptweaks_chatStreams = aptweaks_temp.aptweaks_chat.streams
 -- Funciones Auxiliares.
 ----------------------------------------
 
+-- Comprueba si se cumplen los requerimientos para ejecutar un comando de chat de APTweaks.
+---@param chat ISChat La única instancia del chat.
+---@param player IsoPlayer El jugador asociado al cliente.
+---@param commandData APTStream|APTAdvancedStream El comando que está intentando ejecutar.
+---@return boolean canExec Si el comando debería ejecutarse.
+---@return APTResult? result El resultado del comando, si la comprobación fue terminante.
+local function checkRequires(chat, player, commandData)
+    local requires = commandData.requires or {}
+
+    -- Comprobar los permisos requeridos.
+    if requires.admin and not (isCoopHost() or isAdmin()) then
+        return false, nil
+    end
+
+    -- Comprobar si el jugador debe estar vivo.
+    if requires.playerAlive and not player:isAlive() then
+        return false, nil
+    end
+
+    local customRequires = commandData.customRequires
+
+    -- Comprobar los requerimientos específicos del comando según el proovedor.
+    if customRequires and not commandData.checker(player, customRequires) then
+        return false, nil
+    end
+
+    local tabID = requires.tabID
+
+    -- Comprobar la coincidencia de pestaña.
+    if tabID and chat.currentTabID ~= tabID then
+        return false, {text = "No puede ejecutar este comando en esta pestaña."}
+    end
+
+    return true, nil
+end
+
 -- Despacha un comando de Chat de APTweaks.
 ---@param chat ISChat La instancia del chat.
 ---@param player IsoPlayer El IsoPlayer asociado al cliente.
@@ -97,16 +135,11 @@ local aptweaks_chatStreams = aptweaks_temp.aptweaks_chat.streams
 ---@param argsString string Una tabla con los argumentos que acompañaron al comando.
 ---@return APTResult result El resultado del comando. Una tabla con un texto y un comando según se requiera.
 local function handleAPTweaksChatCommand(chat, player, commandData, argsString)
-    local requires = commandData.requires
+    local canExec, result = checkRequires(chat, player, commandData)
 
-    -- Comprobar los requerimientos específicos del comando.
-    if requires and not commandData.checker(player, requires) then
-        return {text = "Unknown command " .. commandData.name} -- Fingiendo que el comando no existe, como en Minecraft.
-    end
-
-    -- Comprobar la coincidencia de pestaña.
-    if chat.currentTabID ~= commandData.tabID then
-        return {text = "No puede ejecutar este comando en esta pestaña."}
+    -- Comprobar los requerimientos para ejecutar el comando.
+    if not canExec then
+        return result or {text = "Unknown command " .. commandData.name} -- Fingiendo que el comando no existe, como en Minecraft.
     end
 
     local args = {} ---@type string[]
@@ -115,7 +148,7 @@ local function handleAPTweaksChatCommand(chat, player, commandData, argsString)
     for arg in string.gmatch(argsString, "%S+") do
         table.insert(args, arg)
     end
-    
+
     local argsRange = commandData.argc or {min = 0, max = 0}
     local usage = commandData.usage
     local argc = #args
@@ -124,7 +157,7 @@ local function handleAPTweaksChatCommand(chat, player, commandData, argsString)
     if argc < argsRange.min then
         return {text = getText("IGUI_APTweaks_Chat_FewArgs", getText(usage))}
     end
-    
+
     local subcommands = commandData.subcommands
 
     -- Comprobar si debería haber un subcomando.
@@ -136,10 +169,11 @@ local function handleAPTweaksChatCommand(chat, player, commandData, argsString)
             usage = subcommandData.usage
         end
 
-        ---@diagnostic disable-next-line: assign-type-mismatch
-        commandData = subcommandData -- Forzando un nuevo tipo en el parámetro.
+        ---@cast commandData +APTSubcommand? Forzando un nuevo tipo en el parámetro.
+        commandData = subcommandData
     end
 
+    -- Si para este punto hay commandData, manejar. De lo contrario, devolver error.
     ---@cast commandData -APTAdvancedStream Los APTAdvancedStream siempre tienen un APTSubcommand.
     if commandData then
 
@@ -171,17 +205,17 @@ local function addLineInChatExtension(message, tabID)
     -- Buscar el panel de texto correspondiente a la pestaña.
     for _, tab in ipairs(ISChat.instance.tabs) do
 
-        if tab and tab.tabID == tabID then -- Comprobar si tab existe me parece redundante, pero así lo hace vanilla. 
+        if tab and tab.tabID == tabID then -- Comprobar si tab existe me parece redundante, pero así lo hace vanilla.
             chatText = tab
             break
         end
     end
-    
+
     if not chatText then return end
 
     local chatMessages = chatText.chatMessages
 
-    -- Si el número de mensajes excede el máximo, limpiar mensajes sobrantes. 
+    -- Si el número de mensajes excede el máximo, limpiar mensajes sobrantes.
     if #chatMessages > ISChat.maxLine + 1 then
         local newMessages = {} ---@type ChatMessage[]
 
@@ -196,17 +230,17 @@ local function addLineInChatExtension(message, tabID)
     end
 end
 
--- Cambia el tamaño de texto de los mensajes de APTweaks cuando cambia la configuación.
+-- Cambia el tamaño de texto de los mensajes de APTweaks cuando cambia la configuación del chat.
 ---@param chat ISChat La instancia del chat.
 local function updateChatPrefixSettingsExtension(chat)
-    
+
     for _, tab in ipairs(chat.tabs) do
 
         ---@cast tab.chatMessages (APTChatMessage|ChatMessage)[] Este mod añade mensajes falsos a esta tabla.
         for _, msg in ipairs(tab.chatMessages) do
 
             if msg.modID == modID then
-                msg:setSize--[[@cast -?]](chat.chatFont)
+                msg:setSize--[[@cast -?]](chat.chatFont) -- Garantizado por modID.
             end
         end
     end
@@ -220,7 +254,7 @@ local function OnCommandEnteredExtension(player, chat)
     local textEntry = chat.textEntry:getText()
 
     -- Reiniciar estado AFK.
-    resetAfkStatus(player)
+    resetAfkStatus(player, getTimestampMs())
 
     -- Validar que el texto de entrada no esté vacío.
     if not textEntry:match("%S") then return end
@@ -256,10 +290,11 @@ local function OnCommandEnteredExtension(player, chat)
 end
 
 -- Añade a la tab complete del juego los comandos de APTweaks.
--- Si la función heredada se salta índices al cambiar de stream, busca si alguno correspondía con un comando de APTweaks,
+-- Si la función heredada se salta índices al cambiar de stream, busca si alguno correspondía con un comando de APTweaks.
+---@param chat ISChat La única instancia del chat.
 ---@param previousStreamIndex integer El índice actual, antes de que la función heredada lo cambie.
----@param curTxtPanel ISRichTextPanel Idk.
-local function OnSwitchStreamExtension(previousStreamIndex, curTxtPanel)
+---@param curTxtPanel ISRichTextPanel Idk. --XD
+local function OnSwitchStreamExtension(chat, previousStreamIndex, curTxtPanel)
     local expectedIntex = previousStreamIndex + 1 -- El indice esperado si no hubiera un salto de índices.
     local actualIndex = curTxtPanel.streamID
 
@@ -269,7 +304,7 @@ local function OnSwitchStreamExtension(previousStreamIndex, curTxtPanel)
     local chatStreams = curTxtPanel.chatStreams
     local maxIndex ---@type integer -- El indice máximo que se evaluará.
 
-    -- Si el indice actual es el primero, el índice máximo será el total de índices. 
+    -- Si el indice actual es el primero, el índice máximo será el total de índices.
     if actualIndex == 1 then
         maxIndex =  #chatStreams
 
@@ -283,15 +318,11 @@ local function OnSwitchStreamExtension(previousStreamIndex, curTxtPanel)
         local commandData = aptweaks_chatStreams[chatStreams[i]--[[@cast -?]].name] -- El rango de índices lo garantiza.
 
         -- Si hay conincidencia, y si se cumple con los requerimientos del comando, establecerlo.
-        if commandData then
-            local requires = commandData.requires
+        if commandData and checkRequires(chat, client_flags.player, commandData) then
+            ISChat.instance.textEntry:setText(commandData.command)
 
-            if requires and commandData.checker(client_flags.player, requires) then
-                ISChat.instance.textEntry:setText(commandData.command)
-
-                curTxtPanel.streamID = i
-                return
-            end
+            curTxtPanel.streamID = i
+            return
         end
     end
 end
@@ -311,11 +342,12 @@ Events.OnGameStart.Add(function()
     end)
 
     function ISChat.onSwitchStream()
-        local curTxtPanel = ISChat.instance.chatText ---@cast curTxtPanel -? Siempre existe cuando se llama a la función.
+        local chat = ISChat.instance
+        local curTxtPanel = chat.chatText ---@cast curTxtPanel -? Siempre existe cuando se llama a la función.
         local previousStreamIndex = curTxtPanel.streamID
 
         legacy_functions.onSwitchStream()
-        OnSwitchStreamExtension(previousStreamIndex, curTxtPanel)
+        OnSwitchStreamExtension(chat, previousStreamIndex, curTxtPanel)
     end
 
     ---@param message ChatMessage
@@ -330,10 +362,13 @@ Events.OnGameStart.Add(function()
         legacy_functions.updateChatPrefixSettings(self)
     end
 
-    function ISChat:onCommandEntered() -- self no se pasa correctamente aquí. Probablemente por culpa de kahlua.
+    function ISChat:onCommandEntered() -- `self` no se pasa correctamente aquí. Probablemente por culpa de Kahlua.
         OnCommandEnteredExtension(client_flags.player, ISChat.instance)
         legacy_functions.onCommandEntered(self)
     end
 end)
 
--- Tal vez deba permitir que se usen [/r/n] como argumentos o parte de ellos.
+-- Permitir que se usen [/r/n] como argumentos o parte de ellos.
+-- Hacer a los comandos internacionalizables.
+-- Añadir comprobaciones comunes para isAlive y cababilities como requerimientos de comandos. -- En trabajo
+--- Esto debe sustituir también las comprobaciones de isAdmin.

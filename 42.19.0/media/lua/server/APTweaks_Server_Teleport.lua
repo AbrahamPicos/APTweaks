@@ -6,9 +6,11 @@
 
 local aptweaks, aptweaks_teleport = require("APTweaks"), {}
 
+---@alias location {x:number,y:number,z:number}
+
 ---@class APTTeleport
----@field origin {x:number,y:number,z:number}
----@field destination {x:number,y:number,z:number}
+---@field origin location
+---@field destination location
 ---@field time integer
 ---@field name string
 ---@field tempRole string?
@@ -30,8 +32,8 @@ local aptweaks_temp = aptweaks.aptweaks_temp
 aptweaks_temp.teleport = aptweaks_temp.teleport or {} ---@type table<string,APTTeleport?>
 
 -- Obtiene la distancia al cuadrado entre dos puntos.
----@param p1 {x:number,y:number,z:number}
----@param p2 {x:number,y:number,z:number}
+---@param p1 location
+---@param p2 location
 ---@return number DistanceSquared
 local function getDistanceSquared(p1, p2)
     local dx = p1.x - p2.x
@@ -43,7 +45,7 @@ end
 -- Remueve un teletransporte en curso.
 ---@param username string
 ---@param tempRole string?
----@param cooldown boolean
+---@param cooldown boolean|integer?
 local function removeTeleport(username, tempRole, cooldown)
 
     if not cooldown then
@@ -90,8 +92,8 @@ local function sendTeleport(player, teleport)
 end
 
 -- Ajusta los parámetros iniciales de la teletransportación, y notifica al cliente.
----@param player IsoPlayer
----@param args table
+---@param player IsoPlayer El jugador asociado al cliente.
+---@param args {username:string?,name:string?} Los argumentos del comando.
 ---@return APTResult? data (nil si el paquete es malo)
 function aptweaks_teleport.teleportRequestCommand(player, args)
     local origin = {x = player:getX(), y = player:getY(), z = player:getZ()}

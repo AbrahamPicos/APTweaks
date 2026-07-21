@@ -6,7 +6,6 @@ local aptweaks = require("APTweaks")
 
 local utils = aptweaks.utils
 local aptweaks_temp = aptweaks.aptweaks_temp
-local aptweaks_data = aptweaks_temp.aptweaks_data
 
 local ModData = ModData
 
@@ -30,19 +29,21 @@ aptweaks_temp.onPlayerDisconnected = {} ---@type table<string,(fun(username:stri
 -- Crea el mapa de datos de APTweaks. También lo restablece si es necesario.
 ---@param reset boolean Si el mapa debe restablecerse, lo que borrará todos los datos.
 function utils.SetupData(reset)
-    -- Las claves con las que se nombran a las tablas de ModData no admiten puntos, por lo que no puedo usar modID.
-    aptweaks_temp.aptweaks_data = ModData.getOrCreate("aptweaks")
+    local aptweaks_data = ModData.getOrCreate("aptweaks")
+
+    -- El mapa de datos persistente de APTweaks. Almacena todos los datos del mod que necesitan persistir entre reinicios.
+    aptweaks_temp.aptweaks_data = aptweaks_data
 
     if utils.isTableEmpty(aptweaks_data) or reset then
         -- La versión de la estructura de datos. Se usará para saber si debe actualizarse cuando se actualiza el mod.
         aptweaks_data.dataversion = 1
         -- El submapa de las áreas. Contiene toda la información de las áreas que pueden reclamarse como non-building safehouses.
-        aptweaks_data.areas = {}
+        aptweaks_data.areas = {} ---@type table<string,location?>
         -- El submapa que indexa las áreas por celda.
         -- APTweaks usa una cuadricula espacial para indexar las áreas, lo que reduce las iteraciones al acceder al mapa de datos.
-        aptweaks_data.cells = {} ---@type table<string, table<string>?>
+        aptweaks_data.cells = {} ---@type table<string,string[]?>
         -- El submapa que contiene los warps.
-        aptweaks_data.warps = {}
+        aptweaks_data.warps = {} ---@type table<string,location?>
     end
 end
 
@@ -85,7 +86,7 @@ function utils.getNewRole(name, capabilities)
         end
     end
 
-    error("NO_NEW_ROLES")
+    error("[APTweaks] NO_NEW_ROLES")
 end
 
 return utils

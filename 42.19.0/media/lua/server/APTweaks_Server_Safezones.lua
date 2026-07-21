@@ -10,47 +10,22 @@ local SafeHouse = SafeHouse
 -- El submapa de las áreas bloqueadas. Registra como "bloqueadas" las áreas que están siendo accedidas por algún cliente.
 aptweaks_temp.blocked = aptweaks_temp.blocked or {} ---@type table<string,string?>
 
--- USAR ESTO COMO BASE PARA REFACTORIZAR.
---------------------------------------------
-local function almacenarAreaGrande(id, x, y, ancho, alto)
-    -- Calcular celdas de inicio y fin (Rango espacial)
-    local celdaX_inicio = math.floor(x / tamanoCelda)
-    local celdaX_fin    = math.floor((x + ancho) / tamanoCelda)
-    
-    local celdaY_inicio = math.floor(y / tamanoCelda)
-    local celdaY_fin    = math.floor((y + alto) / tamanoCelda)
-    
-    -- Guardar el objeto en cada celda que abarca
-    for cx = celdaX_inicio, celdaX_fin do
-        for cy = celdaY_inicio, celdaY_fin do
-            local celdaID = obtenerClaveCelda(cx, cy)
-            
-            -- Crear la celda si no existe
-            grilla[celdaID] = grilla[celdaID] or {}
-            
-            -- Insertar el ID del área en esta celda
-            table.insert(grilla[celdaID], id)
-        end
-    end
-end
-----------------------------------------------------------------
-
 -- Obtiene las celdas que comprenden un area.
 -- Basándose en las mediadas de la cuadrícula espacial de Project Zomboid.
 ---@param x1 number
----@param x2 number
 ---@param y1 number
+---@param x2 number
 ---@param y2 number
----@return table areaCells
-local function getAreaCells(x1, x2, y1, y2)
-    local cx1, cy1 = math.floor(x1 / 256), math.floor(y1 / 256)
-    local cx2, cy2 = math.floor(x2 / 256), math.floor(y2 / 256)
-    local areaCells = {}
+---@return table<string,boolean?> areaCells
+local function getAreaCells(x1, y1, x2, y2)
+    local minX, maxX = math.floor(x1 / 256), math.floor(x2 / 256)
+    local minY, maxY = math.floor(y1 / 256), math.floor(y2 / 256) 
+    local areaCells = {} ---@type table<string,boolean?>
 
-    for cx = cx1, cx2 do
-
-        for cy = cy1, cy2 do
-            local cellID = cx .. "," .. cy
+    for x = minX, maxX do
+        
+        for y = minY, maxY do
+            local cellID = x .. ","  .. y
 
             areaCells[cellID] = true
         end
@@ -60,10 +35,10 @@ local function getAreaCells(x1, x2, y1, y2)
 end
 
 -- Indeaxa un área en una cuadricula espacial en un mapa en con el formato de APTweaks.
----@param args table Los argumentos del comando.
+---@param args {x1:integer,y1:integer,x2:integer,y2:integer} Los argumentos del comando.
 ---@param data table El mapa de datos en el que se indexará el área.
----@return table result
-function aptweaks_safezones.addSafezoneCommand(args, data) -- args = {x1 = pos1.x, y1 = pos1.y, x2 = pos2.x, y2 = pos2.y}
+---@return APTResult result
+function aptweaks_safezones.addSafezoneCommand(args, data)
     local x1, y1, x2, y2 = args.x1, args.y1, args.x2, args.y2
 
     -- Validación de coordenadas
@@ -123,7 +98,7 @@ end
 -- Reclama un área como una safehouse para un cliente.
 ---@param player IsoPlayer El IsoPlayer asociado al cliente que hizó la solicitud. 
 ---@param targetArea table El área que está intentando reclamar.
----@return table result
+---@return APTResult result
 function aptweaks_safezones.claimSafezoneCommand(player, targetArea)
     -- Verificar safehouse existente
     local x1, y1, x2, y2 = targetArea.x1, targetArea.y1, targetArea.x2, targetArea.y2
@@ -151,7 +126,7 @@ end
 -- Remueve un área del mapa de datos de APTweaks,
 ---@param targetArea table El área que se eliminará.
 ---@param data table El mapa de datos del que se eliminará el área.
----@return table result
+---@return APTResult result
 function aptweaks_safezones.removeSafezoneCommand(targetArea, data)
     local areaID = targetArea.x1 .. "," .. targetArea.y1
     local areaCells = getAreaCells(targetArea.x1, targetArea.x2, targetArea.y1, targetArea.y2)

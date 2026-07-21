@@ -61,7 +61,7 @@ end
 
 -- La parte de la lógica del sistema de safehouses sin edificios procesada del lado del servidor.
 ---@param player IsoPlayer Un IsoPlayer.
----@param args table 
+---@param args {action:string,x:number,y:number}
 ---@return APTResult? result
 local function SafezoneCommand(player, args)
 
@@ -114,9 +114,8 @@ local function SafezoneCommand(player, args)
 end
 
 -- Añade o remueve un warp del mapa de datos del mod.
--- args = {action = action, name = warp, location = {x = x, y = y, z = z}}
 ---@param player IsoPlayer El IsoPlayer asociado al cliente.
----@param args table
+---@param args {action:string,name:string,location:location}
 ---@return APTResult? result
 local function WarpCommand(player, args)
     local aptweaks_data = aptweaks_temp.aptweaks_data
@@ -157,7 +156,7 @@ end
 
 -- Notifica al cliente la tabla de warps disponibles.
 local function WarpsCommand()
-    local warps = {}
+    local warps = {} ---@type string[]
 
     for warp, _ in pairs(aptweaks_temp.aptweaks_data.warps) do
         table.insert(warps, warp)
@@ -169,7 +168,7 @@ end
 -- Reinicia el mapa de datos de APTweaks a sus valores predeterminados.
 ---@param player IsoPlayer El jugador asociado al cliente.
 ---@return APTResult? result
-local function ClearDataCommand(player) -- args = {}
+local function ClearDataCommand(player)
 
     if player:getRole():getName() ~= "admin" and not APTweaksVars.CoopServerMode then return end
 

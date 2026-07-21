@@ -18,13 +18,77 @@ local ipairs = ipairs
 
 -- La tabla de los de los comandos de chat. Debe añadir aquí sus comandos para que este mod los maneje. 
 aptweaks_temp.aptweaks_chat = aptweaks_temp.aptweaks_chat or {
-    streams = {}, ---@type table<string,(APTStream|APTAdvancedStream)?> 
+    streams = {}, ---@type table<string,(APTStream|APTAdvancedStream)?>
     index = {} ---@type string[]
 }
 
 local aptweaks_chatIndex = aptweaks_temp.aptweaks_chat.index
 local aptweaks_chatStreams = aptweaks_temp.aptweaks_chat.streams
 
+local addCommandsTasks = {
+    APTChat = {
+        iterator = function (commands)
+            return ipairs(commands)
+        end,
+        iteratorExternal = pairs(aptweaks_chatStreams), 
+        callback = function (name, command, checker, provider)
+            table.insert(aptweaks_chatIndex, name) -- Indexando para mantener el órden.
+
+            ---@cast command +APTAdvancedStream, +APTStream, -APTAdvancedCommand, -APTCommand
+            command.checker = checker
+            command.provider = provider
+            aptweaks_chatStreams[name] = command
+        end
+    },
+    ISChat = {
+        iterator = function (commands)
+            return pairs(commands)
+        end,
+        itetatorExternal = ipairs(ISChat.allChatStreams),
+        callback = function (name, command, checker, provider)
+            -- FALTA EL CALLBACK.
+        end
+    }
+}
+
+-- Busca coincidencias entre dos tablas de comandos, y llama a un callback por cada elemento que no coincida.
+---@param commands (APTCommand|APTAdvancedCommand)[]|table<string,(APTStream|APTAdvancedStream)?> La tabla de comandos.
+---@param task table
+---@param data {provider:string,checker:fun(player:IsoPlayer,requires:table<string,boolean?>):boolean}
+local function extendCommandsList(commands, task, data)
+    local provi = task.provider
+    local check = task.checker
+
+    for i, command in task.iterator do
+        local shortCommandString = command.shortCommand
+        local commandString = command.command
+        local name = command.name
+        local exist ---@type boolean
+
+        -- Buscar si name, command, o shortcommand existen.
+        for _, value in task.iteratorExternal do
+            local shortCommand = value.shortCommand
+
+            if name == value.name
+                or value.command == commandString
+                or shortCommand and shortCommand == shortCommandString
+            then
+                exist = true
+                break
+            end
+        end
+
+        provi = provi or command.provider
+
+        -- Si no existe llamar al callback.
+        if not exist then
+            task.callback(name, command, check or command.checker, provi)
+
+        else
+            print("[APTWeaks (" .. provi .. ")] WARN: Command already exist: " .. name)
+        end
+    end
+end
 
 -- Instancia un ChatMessge falso para usarlo con la función `ISChat.addLineInChat`.
 ---@param size string El tamaño del texto. Puede ser "small", "medium", y "large".
@@ -65,78 +129,9 @@ function utils.addMessage(text, author, isShowAuthor, tabID)
 end
 
 -- Añade comandos a la API de comandos de APTweaks.
----@param provider string
----@param commands (APTCommand|APTAdvancedCommand)[]
----@param checker fun(player:IsoPlayer, requires:table<string,boolean?>): boolean
-function utils.addCommands(provider, commands, checker)
-
-    for i, command in ipairs(commands) do
-        local shortCommandString = command.shortCommand
-        local commandString = command.command
-        local name = command.name
-        local exist ---@type boolean
-
-        -- Buscar si name, command, o shortcommand existen.
-        for _, value in pairs(aptweaks_chatStreams) do
-            local shortCommand = value.shortCommand
-            
-            if name == value.name
-                or value.command == commandString
-                or shortCommand and shortCommand == shortCommandString
-            then
-                exist = true
-                break
-            end
-        end
-
-        -- Si no existe, convertir en stream, y añadirlo al mapa de streams.
-        if not exist then
-            table.insert(aptweaks_chatIndex, name) -- Indexando para mantener el órden.
-            
-            ---@cast command +APTAdvancedStream, +APTStream, -APTAdvancedCommand, -APTCommand
-            command.checker = checker
-            command.provider = provider
-            aptweaks_chatStreams[name] = command
-
-        else
-            print("[APTWeaks (" .. provider .. ")] WARN: Command already exist: " .. name)
-        end
-    end
-end
-
--- Busca coincidencias entre dos tablas de comandos, y llama a un callback por cada elemento que no coincida.
----@param commands table<string,APTCommand?> La tabla de comandos.
----@param iterator function El iterador que se usará para buscar coincidencias.
----@param callback fun(name:string, command:APTCommand) Lo que se hará con cada elemento que no esté en la lista.
-function utils.extendStreamsList(commands, iterator, callback)
-
-    for name, command in pairs(commands) do
-        local exist ---@type boolean
-
-        -- Buscar si name, command, o shortcommand existen.
-        for _, value in iterator do
-            local shortCommand = value.shortCommand
-            
-            if name == value.name or value.command == command.command or shortCommand and shortCommand == command.shortCommand then
-                exist = true
-                break
-            end
-        end
-
-        -- Si no existe llamar al callback.
-        if not exist then
-            callback(name, command)
-
-        else
-            print("[APTWeaks (" .. command.provider .. ")] WARN: Command already exist: " .. name)
-        end
-    end
-end
-
--- Registra comandos para que sean manejados por la API de comandos de APTweaks.
----@param provider string El módulo que provee los comandos.
----@param commands (APTCommand|APTAdvancedCommand)[] La tabla con los comandos.
----@param checker fun(player:IsoPlayer, requires:table<string,boolean?>): boolean La función para verificar los requerimientos del comando.
+---@param provider string El mod que provee los comandos.
+---@param checker fun(player:IsoPlayer,requires:table<string,boolean?>):boolean La función que verifica los requerimientos de los comandos.s
+---@param commands (APTCommand|APTAdvancedCommand)[] La lista de los comandos que se añadirán.
 function utils.addChatCommands(provider, commands, checker)
-    extendCommandsList(commands, pairs(aptweaks_streams), addCommand)
+    extendCommandsList(commands, addCommandsTasks.APTChat, {provider = provider, checker = checker})
 end

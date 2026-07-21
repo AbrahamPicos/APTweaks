@@ -29,7 +29,6 @@ local function PlayerConnectedCommand(args)
 end
 
 -- Muestra un mensaje cuando un jugador se desconectó del servidor.
----comment
 ---@param args {username:string}
 ---@return APTResult? result
 local function PlayerDisconnectedCommand(args)
@@ -103,20 +102,18 @@ local function TeleportCommand(player, args)
 end
 
 -- Muestra los warps disponibles.
----@param args {names:table<string,string>}
+---@param args {names:string[]}
 ---@return APTResult result
 local function WarpsCommand(args)
     return {text = getText("IGUI_APTweaks_AviableWarps", showWarps(args.names))}
 end
 
 -- Devuélve un mensaje Internacionalizado.
----@param args table<string, any>
+---@param args {text:string,subs:(number|string)[]}
 ---@return APTResult? result
 local function MessageCommand(args)
     local subs = args.subs or {} -- Elementos que sustituirán a los placeholders en el texto.
-    local handler = text_handlers[#subs]
-
-    if not handler then return end
+    local handler = text_handlers[#subs] or text_handlers[4]
 
     local s = args.text
     local text = handler(s, subs[1], subs[2], subs[3], subs[4])

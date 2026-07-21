@@ -5,6 +5,7 @@
 local aptweaks = require("APTweaks")
 
 ---@class APTClientFlags
+---@field afk boolean
 ---@field teleport table?
 ---@field isMoving boolean
 ---@field player IsoPlayer
@@ -12,94 +13,55 @@ local aptweaks = require("APTweaks")
 ---@field lastY number
 ---@field lastZ number
 
-local pairs = pairs
-
 local getText = getText
 
 local utils = aptweaks.utils
 local aptweaks_temp = aptweaks.aptweaks_temp
-local APTweaksVars = aptweaks.APTweaksVars
 
 -- La tabla de timers.
-aptweaks_temp.timers = aptweaks_temp.timers or {} ---@type table<string,{justAdded:boolean,counter:number,cycles:integer}>
+aptweaks_temp.timers = aptweaks_temp.timers or {}
 -- El mapa de banderas del cliente. Controla los estados del cliente para los sistemas que el mod añade. 
 aptweaks_temp.client_flags = aptweaks_temp.client_flags or {} ---@type APTClientFlags
+-- Las tablas de timers. Se usan para actualizar estados en el evento OnTick.
+aptweaks_temp.timers = {}
 
+local timers = aptweaks_temp.timers
 local client_flags = aptweaks_temp.client_flags
 
--- Establece o restablece un timer.
----@param name string El nombre del timer.
-local function setTimer(name)
-    aptweaks_temp.timers[name] = {justAdded = true, counter = 0, cycles = 0}
-end
+-- Establece uno de los timers a un nuevo valor de tiempo.
+---@param timer "clientAFK"|"clientTeleport"
+---@param time integer
+local function setTimes(timer, time)
+    local times = timers[timer].times
 
--- Obtiene el ciclo actual de un timer.
----@param name string El nombre del timer.
----@return number cycle El número de ciclo.
-local function getTimerCycle(name)
-    return aptweaks_temp.timers[name].cycles
-end
-
--- Devuélve la lista de warps disponibles en forma de string.
----@param warps table El mapa con los warps existentes.
----@return string aviableWarps Un string con saltos de línea compatible con el chat de Project Zomboid.
-function utils.showWarps(warps)
-    local aviableWarps = "<LINE>"
-    local index = 0
-
-    for warp, _ in pairs(warps) do
-        index = index + 1
-        aviableWarps = aviableWarps .. "* " .. warp
-
-        if index < #warps then
-            aviableWarps = aviableWarps .. "<LINE>"
-        end
-    end
-
-    return aviableWarps
-end
-
--- Actualiza un timer, y devuelve sus variables.
----@param name string El nombre del timer.
----@param time number El tiempo que se añadirá al timer.
----@return number cycle El número de ciclo.
----@return boolean isCycleUpdate Si esta actualización resultó en un nuevo ciclo.
-function utils.getTimerUpdate(name, time)
-    local timer = aptweaks_temp.timers[name]
-    local isCycleUpdate = timer.justAdded -- Con esto el primer ciclo es el 0.
-
-    timer.counter = timer.counter + time
-    timer.justAdded = false
-
-    if timer.counter >= 1 then
-        timer.counter = timer.counter - 1
-        timer.cycles = timer.cycles + 1
-        isCycleUpdate = true
-    end
-
-    return timer.cycles, isCycleUpdate
+    times.start, times.lastNotify = time, time
 end
 
 -- Restablece el estado AFK del cliente.
 ---@param player IsoPlayer? El IsoPlayer asociado al cliente.
-function utils.resetAfkStatus(player)
+---@param time integer Una marca de tiempo UNIX.
+function utils.resetAfkStatus(player, time)
+    -- Restablecer timer
+    setTimes("clientAFK", time)
 
     -- Validar si pasó suficiente tiempo para tener que notificar al usuario.
-    if player and (getTimerCycle("afk") >= APTweaksVars.AfkStart) then
-        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 500)
+    if player and client_flags.afk then
+        player:setHaloNote(getText("IGUI_APTweaks_HaloNote_AfkRemoved"), 0, 255, 0, 1000)
     end
 
-    -- Restablecer timer
-    setTimer("afk")
+    -- Limpiar vandera
+    client_flags.afk = nil
 end
 
 -- Restablece el estado de teletransporte del cliente.
+-- Los estados de la solicitud de teletransporte son nil, "begins", "requested", y "cancelled".
 ---@param player IsoPlayer El IsoPlayer asociado al cliente.
+---@param time integer Una marca de tiempo UNIX.
 ---@param teleport table Una referencia a la tabla de teletransporte del cliente (optimización).
-function utils.resetTeleportStatus(player, teleport)
+function utils.resetTeleportStatus(player, time, teleport)
     -- restablecer timer y notificar al usuario.
-    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 500)
-    setTimer("teleport")
+    player:setHaloNote(getText("IGUI_APTweaks_HaloNote_TeleportCancelled"), 255, 0, 0, 1000)
+    setTimes("clientTeleport", time)
 
     -- Validar que aún no haya terminado el retraso. Si terminó, cambiar estado a cancelado y salir.
     if teleport.status == "waiting" then
@@ -111,9 +73,6 @@ function utils.resetTeleportStatus(player, teleport)
     client_flags.teleport = nil
 end
 
--- Inicializar timers.
-setTimer("afk"); setTimer("teleport")
-
 return utils
 
--- Teleporting no puede ser table.
+-- Teleport no puede ser "table". Hágalo más específico.
